@@ -10,7 +10,7 @@ type A = (p: ActionState | null, f: FormData) => Promise<ActionState>;
 const area = "min-h-24 rounded-md border border-line bg-surface px-3 py-2 text-sm";
 
 export function TemplateForm({ action, template, placeholders, cancelHref }: { action: A; template?: Pick<TemplateDto, "name" | "subject" | "intro" | "signoff">; placeholders: PlaceholderDto[]; cancelHref?: string }) {
-  const { formProps, pending, error } = useActionForm<void>(action as never, { resetOnSuccess: !template });
+  const { formProps, pending, error } = useActionForm<void>(action as never, { resetOnSuccess: !template?.name });
   return (
     <form {...formProps} className="flex max-w-xl flex-col gap-4">
       <Field name="name" label="Template name" required minLength={2} maxLength={60} defaultValue={template?.name} autoComplete="off" />
@@ -29,7 +29,7 @@ export function TemplateForm({ action, template, placeholders, cancelHref }: { a
         <p className="mt-1">The table of bills and the list of attached PDFs are added between the opening and closing text.</p>
       </div>
       <div className="flex items-center gap-4">
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : template ? "Save changes" : "Save template"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : template?.name ? "Save changes" : "Save template"}</Button>
         {cancelHref && <Link href={cancelHref} className="text-sm underline underline-offset-4">Cancel</Link>}
       </div>
       {error && <FormMessage>{error}</FormMessage>}
