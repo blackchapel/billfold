@@ -31,6 +31,8 @@ import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
 import { CheckAllConnections } from "../application/connection-health";
 import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "../application/connections";
+import { CreateManualBill, ListBills, MarkBillChecked, SetBillDeleted, SetBillPaid, UpdateBill } from "../application/bills";
+import { ReportService } from "../application/report-service";
 import { ProcessNextItem } from "../application/run-processor";
 import { CancelRun, ListRuns, RetryRunItems, StartRun } from "../application/runs";
 import { DeleteRunConfig, ListRunConfigs, SaveRunConfig } from "../application/run-configs";
@@ -110,6 +112,13 @@ function build() {
     cancelRun: new CancelRun(runRepo, runItemRepo, authz, systemClock, audit),
     retryRunItems: new RetryRunItems(runRepo, runItemRepo, authz, audit),
     listRuns: new ListRuns(runRepo, runItemRepo, billRepo),
+    updateBill: new UpdateBill(billRepo, authz, systemClock, audit),
+    createManualBill: new CreateManualBill(billRepo, authz, systemClock, audit),
+    markBillChecked: new MarkBillChecked(billRepo, authz, systemClock, audit),
+    setBillPaid: new SetBillPaid(billRepo, authz, systemClock, audit),
+    setBillDeleted: new SetBillDeleted(billRepo, authz, systemClock, audit),
+    listBills: new ListBills(billRepo),
+    reports: new ReportService(billRepo, systemClock),
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }

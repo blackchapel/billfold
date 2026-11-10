@@ -22,15 +22,23 @@ export const bills = pgTable("bills", {
   needsReview: boolean("needs_review").notNull().default(false),
   note: text("note"),
   messageKey: text("message_key").notNull(),
+  // Set when someone checks or corrects the bill. A bill that only the reader has seen has these empty.
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  // Soft delete: the row stays so the same email is not filed again by the next run, and it can be restored.
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   createdBy: uuid("created_by").notNull().references(() => users.id),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (t) => [
   uniqueIndex("bills_org_message_key_uq").on(t.orgId, t.messageKey),
   index("bills_org_period_idx").on(t.orgId, t.periodKey),
+  index("bills_org_due_idx").on(t.orgId, t.dueDate),
   check("bills_period_ck", sql`${t.periodKey} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
   check("bills_confidence_ck", sql`${t.confidence} in ('high','medium','low')`),
-  check("bills_method_ck", sql`${t.method} in ('text','gemini')`),
+  check("bills_method_ck", sql`${t.method} in ('text','gemini','manual')`),
 ]);
 
 /** The PDF copy in Google Drive. Only ids, a link and a hash are kept here; the bytes live in Drive. */

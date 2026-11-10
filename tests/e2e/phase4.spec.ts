@@ -73,6 +73,7 @@ test("F20 the overview guides a new set-up and shows the latest run", async ({ p
 });
 
 test("F21 a run collects a month of bills: locked PDFs opened, amounts read, files put in Drive, one wrong password reported", async ({ page }) => {
+  test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
   page.on("dialog", (d) => void d.accept());
   await signIn(page, "owner@example.com");
   await page.goto("/sharma-home/connections");
@@ -140,6 +141,7 @@ test("F21 a run collects a month of bills: locked PDFs opened, amounts read, fil
 });
 
 test("F22 a run can be paused and cancelled; what was filed stays and the rest is skipped", async ({ page }) => {
+  test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
   page.on("dialog", (d) => void d.accept());
   await signIn(page, "owner@example.com");
   await addSource(page, { name: "Jio again", senders: "jio.com", mode: /in brackets at the end/ });

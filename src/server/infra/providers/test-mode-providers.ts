@@ -37,6 +37,7 @@ export class StubMailSearch implements MailSearch {
       { id: "2", from: "Power Co <noreply@powerco.example>", subject: "Electricity bill November", date: daysAgo(9), attachments: [{ name: "bill-nov.pdf", size: 31_000 }] },
       { id: "3", from: "News <news@powerco.example>", subject: "Our newsletter", date: daysAgo(12), attachments: [] },
       { id: "5", from: "Bank <statements@bank.example>", subject: "Your statement", date: daysAgo(15), attachments: [{ name: "statement.pdf", size: 40_000 }] },
+      { id: "6", from: "Scans <scan@scanco.example>", subject: "Scanned statement", date: daysAgo(18), attachments: [{ name: "scan.pdf", size: 90_000 }] },
     ];
     return withinWindow(all, input.since, input.before);
   }
@@ -71,6 +72,13 @@ export class StubMailFetch implements MailFetch {
       case "5":
         return { subject: "Your statement", from: "Bank <statements@bank.example>", date, bodyText: "", attachment: input.attachmentName
           ? { name: input.attachmentName, bytes: await billPdf(["Bank statement", "Total amount due: Rs 5,000.00"], TEST_BANK_PASSWORD) } : null };
+      case "6": {
+        // A scan: a page with no text at all, so the reader finds no amount and the bill is flagged for a person to check.
+        const { PDFDocument } = await import("@cantoo/pdf-lib");
+        const doc = await PDFDocument.create();
+        doc.addPage([400, 300]);
+        return { subject: "Scanned statement", from: "Scans <scan@scanco.example>", date, bodyText: "", attachment: input.attachmentName ? { name: input.attachmentName, bytes: await doc.save() } : null };
+      }
       default:
         throw new Error("No such email in the stub mailbox");
     }

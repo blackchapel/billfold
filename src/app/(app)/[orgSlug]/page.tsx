@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { RUN_STATUS_LABELS, periodLabel } from "@/constants/runs";
+import { needsReviewCount } from "@/server/http/queries/bill-queries";
 import { listConnections } from "@/server/http/queries/connection-queries";
 import { listRuns } from "@/server/http/queries/run-queries";
 import { listRunConfigs, listSources } from "@/server/http/queries/source-queries";
@@ -12,7 +13,7 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
   const { orgSlug } = await params;
   const { membership } = await requireOrg(orgSlug);
   const orgId = membership.orgId;
-  const [connections, sources, configs, runs] = await Promise.all([listConnections(orgId), listSources(orgId), listRunConfigs(orgId), listRuns(orgId)]);
+  const [connections, sources, configs, runs, toCheck] = await Promise.all([listConnections(orgId), listSources(orgId), listRunConfigs(orgId), listRuns(orgId), needsReviewCount(orgId)]);
   const broken = connections.filter((c) => c.status !== "active");
   const steps = [
     { done: connections.some((c) => c.kind === "gmail" || c.kind === "imap") && connections.some((c) => c.kind === "google_drive"), href: "/connections", title: "Connect a mailbox and a Google Drive", hint: "Where bills come from, and where the PDFs are filed." },
@@ -31,6 +32,12 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
           <p className="font-medium text-danger">{broken.length === 1 ? "A connection needs attention" : `${broken.length} connections need attention`}</p>
           <p className="mt-1 text-muted">{broken.map((c) => c.label).join(", ")} can no longer sign in. <Link href={`/${orgSlug}/connections`} className="underline underline-offset-4">Open Connections</Link> to reconnect.</p>
         </div>
+      )}
+      {toCheck > 0 && (
+        <p className="mt-6 rounded-md border border-warn px-4 py-3 text-sm" aria-label="Bills to check">
+          <span className="font-medium">{toCheck} {toCheck === 1 ? "bill needs" : "bills need"} a check.</span>{" "}
+          <Link href={`/${orgSlug}/bills?filter=review`} className="underline underline-offset-4">Review {toCheck === 1 ? "it" : "them"}</Link>
+        </p>
       )}
       {last && (
         <section className="mt-8 rounded-md border border-line p-5" aria-label="Latest run">

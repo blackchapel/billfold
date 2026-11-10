@@ -10,6 +10,8 @@ const NAV = [
   { href: "/sources", label: "Sources" },
   { href: "/run-configs", label: "Run configs" },
   { href: "/runs", label: "Runs" },
+  { href: "/bills", label: "Bills" },
+  { href: "/reports", label: "Reports" },
   { href: "/invites", label: "Invites" },
   { href: "/audit", label: "Audit log" },
   { href: "/settings", label: "Settings" },

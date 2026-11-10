@@ -29,12 +29,18 @@ Add or update a flow in the same commit as the feature that changes it.
 | F21 | Run a month with a Jio-style locked PDF, a static-password bank PDF (one source with a wrong password), a plain PDF and a bill that is the email body; retry after fixing; run again | Amounts read, Drive links shown, passwords never on the page, wrong password explained and retried, second run skips everything | phase4.spec.ts |
 | F22 | Pause and cancel a run | Filed items stay, the rest skipped with a reason | phase4.spec.ts |
 | F23 | Viewer opens runs | Can read, no start/retry/cancel/pause | phase4.spec.ts |
+| F24 | A scan with no readable text is filed; open Bills from the Overview notice; correct it (with a typo first) and tick "checked" | Flagged on Overview and in Bills; typed values survive the error; after saving the flag and notices are gone | phase5.spec.ts |
+| F25 | Add a bill by hand (a bad amount first) | Typed values kept after the error; bill listed as "added by hand"; the month list starts at the current month | phase5.spec.ts |
+| F26 | Mark paid / unpaid, delete a bill that came from an email, run the month again, restore it | "Not paid yet" filter works; the deleted bill's email is not filed again; Restore brings it back | phase5.spec.ts |
+| F27 | Search, month filter, Download CSV (also as someone not signed in) | Filters apply; CSV has the header, plain amounts, a defused formula cell; scoped export; no data without a session | phase5.spec.ts |
+| F28 | Open Reports: insights, due lists, month picker, chart hover / focus / table / click a column | Overdue and due-soon bills named with amounts; chart has 12 links, tooltip on hover and focus, 12-row table, columns open that month | phase5.spec.ts |
+| F29 | Viewer opens Bills and Reports | Can read, filter and download; no add, edit, paid, delete or check buttons; `/bills/new` bounces | phase5.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable (arrive with later phases)
-Review queue, manual bills, reports, trends,
+Reports sent by email, trends,
 search, exports, recipients, templates, composer, sending (including a Member without `reports.send` calling the
 endpoint directly), sent log, org deletion.
 
 ## Manual checks that need real Google
-Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and Gemini (both tested only with mocked HTTP), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.
+Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and Gemini (both tested only with mocked HTTP), the Phase 5 screens with a few weeks of real bills (the numbers are covered by unit tests, but only you know what looks right), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.

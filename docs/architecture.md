@@ -47,7 +47,7 @@ sequenceDiagram
 ```
 Every request re-checks the allowlist (`isStillAllowed`), so removing someone takes effect at once.
 
-## Data model (Phase 1-4 tables)
+## Data model (Phase 1-5 tables)
 ```mermaid
 erDiagram
   users ||--o{ org_members : has
@@ -72,7 +72,7 @@ erDiagram
     text email
   }
 ```
-Later phases add reports, bills, files, recipients, templates and sends
+Later phases add bills, files, recipients, templates and sends
 (see the brief's data model; migrations are additive).
 
 ## Multi-tenancy

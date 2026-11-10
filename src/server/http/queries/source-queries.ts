@@ -47,7 +47,8 @@ function toRunConfigDto(c: RunConfigRecord, sources: SourceRecord[], labels: Map
   const names = new Map(sources.map((s) => [s.id, s.name]));
   return {
     id: c.id, name: c.name, driveConnectionId: c.driveConnectionId, driveLabel: labels.get(c.driveConnectionId) ?? "(removed)",
-    driveFolder: c.driveFolder, periodMode: c.periodMode, sourceIds: c.sourceIds, sourceNames: c.sourceIds.map((id) => names.get(id) ?? "(removed)"),
+    driveFolder: c.driveFolder, periodMode: c.periodMode, sourceIds: c.sourceIds, // The database returns links in no particular order; show the names alphabetically so the list never jumps around.
+    sourceNames: c.sourceIds.map((id) => names.get(id) ?? "(removed)").sort((a, b) => a.localeCompare(b)),
   };
 }
 
