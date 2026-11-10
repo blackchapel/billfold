@@ -1,0 +1,16 @@
+export const PERMISSIONS = [
+  "org.manage",
+  "org.delete",
+  "org.transfer",
+  "members.manage",
+  "invites.manage",
+  "connections.manage",
+  "sources.manage",
+  "run_configs.manage",
+  "runs.execute",
+  "bills.edit",
+  "reports.send",
+  "recipients.manage",
+  "templates.manage",
+  "audit.view",
+] as const;
