@@ -47,7 +47,7 @@ sequenceDiagram
 ```
 Every request re-checks the allowlist (`isStillAllowed`), so removing someone takes effect at once.
 
-## Data model (Phase 1-2 tables)
+## Data model (Phase 1-3 tables)
 ```mermaid
 erDiagram
   users ||--o{ org_members : has
@@ -56,12 +56,18 @@ erDiagram
   orgs ||--o{ org_invites : has
   orgs ||--o{ audit_logs : has
   orgs ||--o{ connections : "linked accounts (secret sealed)"
+  orgs ||--o{ sources : "which emails are bills"
+  orgs ||--o{ run_configs : "which sources, which Drive"
+  connections ||--o{ sources : "mailbox (restrict delete)"
+  connections ||--o{ run_configs : "Drive (restrict delete)"
+  run_configs ||--o{ run_config_sources : has
+  sources ||--o{ run_config_sources : "in"
   orgs }o--|| currencies : default
   platform_allowlist {
     text email
   }
 ```
-Later phases add sources, run configs, runs, reports, bills, files, recipients, templates and sends
+Later phases add runs, reports, bills, files, recipients, templates and sends
 (see the brief's data model; migrations are additive).
 
 ## Multi-tenancy

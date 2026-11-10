@@ -7,22 +7,25 @@ gives a new "always do this" instruction (add it under **Standing instructions**
 1. **Branches.** `main` = production, `develop` = integration (deployed to Vercel for the owner's testing),
    `feature/*` or `claude/*` = work branches. **Always cut feature branches from `develop`** (never from `main`).
    Flow: feature (tested locally) → `develop` (owner tests on Vercel) → `main`.
-2. **Merging.** Claude may merge PRs into `develop` once lint, typecheck and tests pass locally. Claude must **never**
-   merge into `main` or push to it, and never force-push `main`/`develop`. Only the owner (blackchapel) merges
-   `develop` → `main`; Claude may open that PR when asked but not merge it.
+2. **Merging.** (Updated Nov 2026) Claude **does not merge anything**: it opens a PR into `develop` and the owner (blackchapel) reviews and merges it.
+   Claude must **never** merge into `main` or push to it, and never force-push `main`/`develop`. Only the owner merges `develop` → `main`;
+   Claude may open that PR when asked.
 3. **Enforcement.** Workflow `.github/workflows/enforce-main-source.yml` fails any PR to `main` not from `develop`
    (check name `Only develop can merge into main`). The owner sets GitHub branch protection/ruleset on `main` by hand
    (the API is blocked for Claude): require PR + that check, block force-push/deletion.
-4. UI verification (`pnpm verify:ui`) runs **only when the owner asks**. Never email real recipients, touch real Drive, or use
-   real bills/passwords in tests.
+4. UI verification: every phase that adds or changes pages ships `verify:ui` flows (`docs/qa/flows.md`) and Claude runs `pnpm verify:ui` before opening the PR
+   (the owner asked for no gaps). Never email real recipients, touch real Drive, or use real bills/passwords in tests.
 5. Never commit secrets, real bill files, passwords or personal data. Fixtures are generated.
 6. Explain things to the owner in simple language; list what they must do manually (env vars, Google, Vercel, Supabase).
+7. **Finish phases completely.** Do not leave gaps for the owner to discover and ask about: build every part of the phase and of earlier phases' known gaps, with tests
+   (unit, integration, `verify:ui` flows) and docs (CLAUDE.md, setup guide, ADR, QA flows) in the same PR. If something truly cannot be done or verified in the sandbox,
+   say exactly what and why in the PR, and what the owner must do. Never end with a list of things "left".
 
 ## Product
 Billfold: private, multi-tenant (org) web app for families/small teams (<100 people) to collect recurring bills from Gmail,
 remove PDF passwords, extract amounts with Gemini, file PDFs in Google Drive, review in a dashboard and email a summary
 with PDFs attached. Manual runs/sends only. Zero-cost (free tiers). Non-goals: share links, built-in source templates,
-approval workflows, non-Gmail ingestion (design interfaces for it), scheduled runs (only the Supabase keep-alive cron).
+approval workflows, non-Gmail ingestion (design interfaces for it), scheduled runs (only two daily crons: Supabase keep-alive and the connection health check).
 
 ## Fixed decisions (details in docs/decisions/)
 Next.js App Router + TS strict + Tailwind v4 on Vercel; Supabase Auth (Google only) + Postgres via Drizzle (server-side only);
@@ -72,7 +75,8 @@ Test mode (`BILLFOLD_TEST_MODE=1`) is inert in production. Jio PDF passwords red
 ## Commands
 `pnpm install` · `pnpm dev` · `pnpm build` · `pnpm lint` · `pnpm typecheck` · `pnpm test` (add `TEST_DATABASE_URL` for integration) ·
 `pnpm db:generate` · `pnpm db:migrate` · `pnpm verify:ui` (needs local Postgres at `TEST_DATABASE_URL`; `PW_CHROMIUM_PATH` for a preinstalled Chromium).
-Local test Postgres in this sandbox: `/var/lib/pgtest` on port 54329 (db `billfold_test`) – may need restarting.
+Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `billfold_test`), start with `su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/pgtest/data -o '-p 54329 -k /tmp' start"` (delete a stale `postmaster.pid` first); it stops between sessions.
+`pnpm verify:ui` here: `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium TEST_DATABASE_URL=postgres://postgres@localhost:54329/billfold_test pnpm verify:ui --trace off` (about 3 minutes; run it in the background).
 
 ## Environment variables (names only; see `.env.example`)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (pooler), `MASTER_ENCRYPTION_KEY`, `SUPER_ADMIN_EMAILS`,
@@ -80,18 +84,21 @@ Local test Postgres in this sandbox: `/var/lib/pgtest` on port 54329 (db `billfo
 Later: `GEMINI_API_KEY`.
 
 ## Current status
-- **Phase 1 (foundation) done** on `feature/phase-1-foundation`: schema + migrations + RLS, envelope crypto, Google sign-in via Supabase with
-  allowlist, super-admin page, orgs, invites, roles/overrides, org switcher, audit log, design tokens, logo/icon, CI + migrate workflows,
-  test mode, `verify:ui` (9 specs pass), 38 unit/integration tests.
-- Phase 0 platform spikes (PDF decrypt, email→PDF, IMAP/SMTP on Vercel, current free-tier limits, Gemini terms) are **deferred** to the
-  phase that needs them (ADR 0005).
-- **Phase 2 (connections) built** on `claude/shared-conversation-link-9vw8na`: `connections` table (sealed secret, RLS), Drive/Gmail Google OAuth (`/api/connections/google/*`),
-  IMAP/SMTP app-password accounts tested before saving, Connections page, `scripts/rotate-master-key.mts`, ADR 0006. Needs owner setup: Google projects (docs/setup-guide.md 2b) and env vars.
-  Real Drive/Gmail round trips and the IMAP probe against a real server are not yet exercised (no credentials / IMAP server in the sandbox).
-- Not yet built: sources/run configs (P3), pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
-- Phase 1 leftovers done: real Google sign-in works on billfold-dev; org rename / transfer ownership / delete (soft delete + key shredding) in Settings.
-- Known gaps:
-  brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet.
+- **Phase 1 (foundation) done**: schema + migrations + RLS, envelope crypto, Google sign-in via Supabase with allowlist, super-admin page, orgs, invites,
+  roles/overrides, org switcher, audit log, org rename / transfer ownership / delete (soft delete + key shredding), design tokens, logo/icon, CI + migrate workflows,
+  test mode. Real Google sign-in verified on billfold-dev.
+- Phase 0 platform spikes (PDF decrypt, email→PDF, free-tier limits, Gemini terms) are **deferred** to the phase that needs them (ADR 0005). IMAP/SMTP are now proven
+  against local servers in tests (hoodiecrow-imap, smtp-server) and against a real mailbox on billfold-dev.
+- **Phase 2 (connections) done** (ADR 0006): `connections` table (sealed secret, RLS), Drive/Gmail Google OAuth (`/api/connections/google/*`, signed state + one-use cookie),
+  IMAP/SMTP app-password accounts tested before saving, update app password, Reconnect, Test, Remove (revokes the grant at Google, refuses if sources/run configs use it),
+  daily health sweep (`/api/cron/connections`, second cron in `vercel.json`) + overview banner, `scripts/rotate-master-key.mts`.
+- **Phase 3 (sources and run configs) done** (ADR 0007): `sources`, `run_configs`, `run_config_sources` tables; sources = mailbox + sender/subject/attachment rules + PDF password mode
+  (none / saved static / Jio-style brackets / custom pattern); source tester (dry run on the real mailbox, Gmail API or IMAP, headers only); run configs = sources + mandatory Drive + folder + default month.
+  Pages: Sources, Run configs. `matchesMessage`, `extractSubjectPassword`, `resolvePeriod` are the domain functions Phase 4 reuses.
+- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F17 + V1 (`docs/qa/flows.md`). Google round trips and the Gmail API search are only exercised with fakes/mocks
+  in the sandbox; the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
+- Not yet built: pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
+- Known gaps: brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet (Phase 7).
 
 ## Gotchas
 - Next 16: middleware is `src/proxy.ts`. ESLint uses native flat config from `eslint-config-next`.
@@ -99,6 +106,7 @@ Later: `GEMINI_API_KEY`.
   worked on a fresh serverless instance but then hung (`GET /` hit the 300s limit) or returned an instant `57014 statement timeout` on reused instances;
   switching to 5432 fixed it (proved on billfold-dev). The direct host is IPv6-only and unreachable from Vercel and GitHub runners. `create.ts` keeps `prepare: false` and short idle/lifetime timeouts.
 - Sign-in failures log `auth_callback_failed` with `step` and the real error (`errorFields` in `lib/log.ts`); read them with Vercel runtime logs.
+- React 19 empties uncontrolled form fields after a form `action` finishes, even on errors. Forms where people type a lot use `useActionForm(...).formProps` (submit handler, no reset); see `hooks/use-action-form.ts`.
 - Server actions that `redirect()` abort in-flight navigations; Playwright must wait for the URL change before the next `goto`.
 - `next/font/google` downloads fonts at build time (needs network).
 - Vercel functions are pinned to Mumbai (`bom1`) in `vercel.json`; keep Supabase projects in the same region (ap-south-1) so database round trips stay short. Change both together.

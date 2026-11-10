@@ -1,10 +1,16 @@
 import "server-only";
 import { env, googleProjects, superAdminEmails } from "../infra/config/env";
 import { db } from "../infra/db/client";
+import { isTestMode } from "../infra/auth/test-mode";
+import { LiveMailSearch } from "../infra/providers/mail-search";
+import { StubConnectionProbe, StubGoogleOAuth, StubMailSearch } from "../infra/providers/test-mode-providers";
 import { HmacStateSigner } from "../infra/crypto/state-signer";
 import { GoogleOAuth } from "../infra/providers/google-oauth";
 import { LiveConnectionProbe } from "../infra/providers/connection-probe";
 import { DrizzleConnectionRepository } from "../infra/repositories/connection-repository";
+import { DrizzleConnectionUsage } from "../infra/repositories/connection-usage";
+import { DrizzleRunConfigRepository } from "../infra/repositories/run-config-repository";
+import { DrizzleSourceRepository } from "../infra/repositories/source-repository";
 import { OrgSecretBox } from "../infra/crypto/org-secret-box";
 import { HashedInviteCodes } from "../infra/crypto/invite-codes";
 import { DrizzleAllowlistRepository } from "../infra/repositories/allowlist-repository";
@@ -15,7 +21,11 @@ import { DrizzleOrgRepository } from "../infra/repositories/org-repository";
 import { PostgresRateLimiter } from "../infra/repositories/rate-limiter";
 import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
-import { AddMailAccount, ListConnections, RemoveConnection, TestConnection } from "../application/connections";
+import { CheckAllConnections } from "../application/connection-health";
+import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "../application/connections";
+import { DeleteRunConfig, ListRunConfigs, SaveRunConfig } from "../application/run-configs";
+import { TestSource } from "../application/source-tester";
+import { DeleteSource, ListSources, SaveSource } from "../application/sources";
 import { CompleteGoogleConnect } from "../application/google-connect";
 import { AuthorizationService } from "../application/authorization";
 import { CreateOrg } from "../application/create-org";
@@ -39,8 +49,12 @@ function build() {
   const authz = new AuthorizationService(orgs, members);
   const connections = new DrizzleConnectionRepository(database);
   const secretBox = new OrgSecretBox(database, env().MASTER_ENCRYPTION_KEY);
-  const google = new GoogleOAuth(googleProjects());
-  const probe = new LiveConnectionProbe(google);
+  const google = isTestMode() ? new StubGoogleOAuth() : new GoogleOAuth(googleProjects());
+  const sources = new DrizzleSourceRepository(database);
+  const runConfigs = new DrizzleRunConfigRepository(database);
+  const usage = new DrizzleConnectionUsage(database);
+  const mailSearch = isTestMode() ? new StubMailSearch() : new LiveMailSearch(google);
+  const probe = isTestMode() ? new StubConnectionProbe() : new LiveConnectionProbe(google);
 
   return {
     repos: { allowlist, users, orgs, members, invites, audit, connections },
@@ -62,8 +76,17 @@ function build() {
     listConnections: new ListConnections(connections),
     addMailAccount: new AddMailAccount(connections, authz, secretBox, probe, systemClock, audit),
     testConnection: new TestConnection(connections, authz, secretBox, probe, systemClock),
-    removeConnection: new RemoveConnection(connections, authz, audit),
+    removeConnection: new RemoveConnection(connections, authz, audit, secretBox, google, usage),
+    updateMailPassword: new UpdateMailPassword(connections, authz, secretBox, probe, systemClock, audit),
+    checkAllConnections: new CheckAllConnections(orgs, connections, secretBox, probe, systemClock),
     completeGoogleConnect: new CompleteGoogleConnect(connections, authz, secretBox, google, probe, systemClock, audit),
+    listSources: new ListSources(sources),
+    saveSource: new SaveSource(sources, connections, authz, secretBox, audit),
+    deleteSource: new DeleteSource(sources, authz, audit),
+    testSource: new TestSource(connections, authz, secretBox, mailSearch, systemClock),
+    listRunConfigs: new ListRunConfigs(runConfigs),
+    saveRunConfig: new SaveRunConfig(runConfigs, sources, connections, authz, audit),
+    deleteRunConfig: new DeleteRunConfig(runConfigs, authz, audit),
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }

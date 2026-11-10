@@ -1,7 +1,7 @@
 import { SMTPServer } from "smtp-server";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { friendly, probeSmtp } from "@/server/infra/providers/mail-server-probe";
+import { friendly, probeImap, probeSmtp } from "@/server/infra/providers/mail-server-probe";
 
 describe("friendly mail errors", () => {
   const err = (message: string, code?: string) => Object.assign(new Error(message), code ? { code } : {});
@@ -40,5 +40,26 @@ describe("probeSmtp against a local SMTP server", () => {
   it("rejects a wrong password with a safe message that does not echo it", async () => {
     const r = await probeSmtp(config(), "wrong-secret-xyz");
     expect(r).toEqual({ ok: false, message: "The server rejected the username or app password." });
+  });
+});
+
+describe("probeImap against a local IMAP server", () => {
+  type Closable = { listen(port: number, cb?: () => void): void; close(cb?: () => void): void };
+  let server: Closable;
+  const port = 14393;
+  beforeAll(async () => {
+    const { createRequire } = await import("node:module");
+    const imap = createRequire(import.meta.url)("hoodiecrow-imap") as (opts: unknown) => Closable;
+    server = imap({ plugins: ["ID", "UIDPLUS"], users: { "bills@example.com": { password: "good-app-password" } }, storage: { INBOX: { messages: [] } } });
+    await new Promise<void>((r) => server.listen(port, r));
+  });
+  afterAll(() => new Promise<void>((r) => server.close(() => r())));
+
+  const config = () => ({ host: "127.0.0.1", port, secure: false, username: "bills@example.com" });
+  it("signs in with the right app password", async () => {
+    expect(await probeImap(config(), "good-app-password")).toMatchObject({ ok: true });
+  });
+  it("rejects a wrong password with the safe message", async () => {
+    expect(await probeImap(config(), "wrong-secret-xyz")).toEqual({ ok: false, message: "The server rejected the username or app password." });
   });
 });

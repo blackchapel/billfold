@@ -4,8 +4,10 @@ import type { AuditEntry } from "@/domain/ports/repositories";
 import type { AllowlistRepository, AuditLogRepository, InviteRepository, MemberRepository, OrgRepository, UserRepository } from "@/domain/ports/repositories";
 import type { InviteRecord, MemberRecord, MembershipWithOrg, OrgRecord, UserRecord } from "@/domain/ports/records";
 import type { Clock, ConnectionProbe, GoogleOAuthClient, InviteCodeService, ProbeResult, RateLimiter, SecretBox } from "@/domain/ports/services";
-import type { ConnectionRepository } from "@/domain/ports/repositories";
-import type { ConnectionRecord } from "@/domain/ports/records";
+import type { ConnectionRepository, ConnectionUsage, RunConfigRepository, SourceRepository } from "@/domain/ports/repositories";
+import type { MessageSummary } from "@/domain/value-objects/source-rules";
+import type { ConnectionRecord, RunConfigRecord, SourceRecord } from "@/domain/ports/records";
+import type { MailSearch, MailSearchInput } from "@/domain/ports/services";
 
 export class Memory {
   allowed = new Set<string>();
@@ -19,6 +21,13 @@ export class Memory {
   connections = new Map<string, ConnectionRecord & { secret: string }>();
   probeResult: ProbeResult = { ok: true, message: "ok" };
   probed: { kind: string; secretJson: string }[] = [];
+  sources = new Map<string, SourceRecord & { cipher: string | null }>();
+  runConfigs = new Map<string, RunConfigRecord>();
+  mailbox: MessageSummary[] = [];
+  searchFails = false;
+  searched: MailSearchInput[] = [];
+  revoked: string[] = [];
+  revokeFails = false;
   googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
 
   allowlist: AllowlistRepository = {
@@ -87,6 +96,37 @@ export class Memory {
     authorizeUrl: (k, state) => `https://google.test/auth?k=${k}&state=${state}`,
     exchangeCode: async () => this.googleAccount,
     accessToken: async () => "access",
+    revoke: async (_k, token) => { if (this.revokeFails) throw new Error("offline"); this.revoked.push(token); },
+  };
+  private sourceView(x: SourceRecord & { cipher: string | null }): SourceRecord {
+    return { id: x.id, orgId: x.orgId, name: x.name, connectionId: x.connectionId, matcher: x.matcher, passwordMode: x.passwordMode, passwordPattern: x.passwordPattern, hasStaticPassword: x.cipher !== null, createdAt: x.createdAt };
+  }
+  sourceRepo: SourceRepository = {
+    create: async (orgId, _by, f, cipher) => { const r = { id: randomUUID(), orgId, ...f, hasStaticPassword: cipher !== null, createdAt: this.now, cipher }; this.sources.set(r.id, r); return this.sourceView(r); },
+    update: async (orgId, id, f, cipher) => { const r = this.sources.get(id); if (!r || r.orgId !== orgId) return null; Object.assign(r, f); if (cipher !== undefined) r.cipher = cipher; return this.sourceView(r); },
+    list: async (o) => [...this.sources.values()].filter((x) => x.orgId === o).map((x) => this.sourceView(x)),
+    find: async (o, id) => { const r = this.sources.get(id); return r && r.orgId === o ? this.sourceView(r) : null; },
+    findMany: async (o, ids) => [...this.sources.values()].filter((x) => x.orgId === o && ids.includes(x.id)).map((x) => this.sourceView(x)),
+    findByName: async (o, n) => { const r = [...this.sources.values()].find((x) => x.orgId === o && x.name.toLowerCase() === n.toLowerCase()); return r ? this.sourceView(r) : null; },
+    findPasswordCiphertext: async (o, id) => { const r = this.sources.get(id); return r && r.orgId === o ? r.cipher : null; },
+    remove: async (o, id) => { const r = this.sources.get(id); if (r && r.orgId === o) { this.sources.delete(id); for (const rc of this.runConfigs.values()) rc.sourceIds = rc.sourceIds.filter((s) => s !== id); } },
+  };
+  runConfigRepo: RunConfigRepository = {
+    create: async (orgId, _by, f) => { const r = { id: randomUUID(), orgId, ...f, createdAt: this.now }; this.runConfigs.set(r.id, r); return r; },
+    update: async (orgId, id, f) => { const r = this.runConfigs.get(id); if (!r || r.orgId !== orgId) return null; Object.assign(r, f); return r; },
+    list: async (o) => [...this.runConfigs.values()].filter((x) => x.orgId === o),
+    find: async (o, id) => { const r = this.runConfigs.get(id); return r && r.orgId === o ? r : null; },
+    findByName: async (o, n) => [...this.runConfigs.values()].find((x) => x.orgId === o && x.name.toLowerCase() === n.toLowerCase()) ?? null,
+    remove: async (o, id) => { const r = this.runConfigs.get(id); if (r && r.orgId === o) this.runConfigs.delete(id); },
+  };
+  usage: ConnectionUsage = {
+    namesUsing: async (o, id) => [
+      ...[...this.sources.values()].filter((x) => x.orgId === o && x.connectionId === id).map((x) => `source "${x.name}"`),
+      ...[...this.runConfigs.values()].filter((x) => x.orgId === o && x.driveConnectionId === id).map((x) => `run config "${x.name}"`),
+    ],
+  };
+  mailSearch: MailSearch = {
+    search: async (input) => { this.searched.push(input); if (this.searchFails) throw new Error("imap exploded: user=a pass=hunter2"); return this.mailbox; },
   };
   clock: Clock = { now: () => this.now };
   codes: InviteCodeService = { generate: () => ({ code: "CODE12345678", hash: "h:CODE12345678" }), hash: (c) => `h:${c.toUpperCase()}` };

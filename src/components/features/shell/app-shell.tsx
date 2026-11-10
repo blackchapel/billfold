@@ -6,6 +6,8 @@ const NAV = [
   { href: "", label: "Overview" },
   { href: "/members", label: "Members" },
   { href: "/connections", label: "Connections" },
+  { href: "/sources", label: "Sources" },
+  { href: "/run-configs", label: "Run configs" },
   { href: "/invites", label: "Invites" },
   { href: "/audit", label: "Audit log" },
   { href: "/settings", label: "Settings" },

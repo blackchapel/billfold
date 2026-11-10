@@ -15,7 +15,7 @@ const PRESETS = {
 } as const;
 
 export function MailAccountForm({ action }: { action: A }) {
-  const { formAction, pending, error, state } = useActionForm<void>(action as never);
+  const { formProps, pending, error, state } = useActionForm<void>(action as never, { resetOnSuccess: true });
   const [kind, setKind] = useState<"imap" | "smtp">("imap");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("993");
@@ -32,7 +32,7 @@ export function MailAccountForm({ action }: { action: A }) {
   };
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-4">
+    <form {...formProps} className="flex max-w-xl flex-col gap-4">
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">What is this account for?</legend>
         <label className="flex items-center gap-2 text-sm"><input type="radio" name="kind" value="imap" checked={kind === "imap"} onChange={() => switchKind("imap")} /> Receiving bills (IMAP)</label>
