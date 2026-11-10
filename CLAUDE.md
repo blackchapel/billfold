@@ -31,7 +31,7 @@ approval workflows, non-Gmail ingestion (design interfaces for it), scheduled ru
 Next.js App Router + TS strict + Tailwind v4 on Vercel; Supabase Auth (Google only) + Postgres via Drizzle (server-side only);
 Drive is the only file store (IDs/hashes in DB); Gemini with mock extractor until key exists; per-org envelope encryption;
 INR only but schema supports many currencies; roles Owner/Admin/Member/Viewer + per-member overrides; login allowlist in DB
-(`platform_allowlist`) managed by super admins from `SUPER_ADMIN_EMAILS`; Google project A (verified: login + drive.file) and
+(`platform_allowlist`) managed by super admins from `SUPER_ADMIN_EMAILS`; Google project A (login, plus Drive through the restricted `drive` scope; verification is the owner's) and
 project B (unverified: gmail.readonly + gmail.send); app passwords (IMAP/SMTP) also supported for mail; every run config must
 choose a Drive connection; processing is chunked one item per request.
 
@@ -68,7 +68,7 @@ Secrets never client-side/logged. RLS on every table (deny by default). Invite c
 Test mode (`BILLFOLD_TEST_MODE=1`) is inert in production. Jio PDF passwords redacted everywhere (wired in Phases 3–4).
 
 ## Folder map
-`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/cron/connections, api/connections/google, api/test/outbox) ·
+`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/cron/connections, api/connections/google, api/test/{outbox,drive,cache}) ·
 `src/components/{ui,features}` · `src/hooks` · `src/domain` · `src/server/{application,http,infra,composition-root}` ·
 `src/lib` · `src/constants` · `src/types` · `drizzle/` SQL migrations · `tests/{unit,integration,e2e,fakes}` · `docs/` · `scripts/`.
 
@@ -80,7 +80,7 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
 
 ## Environment variables (names only; see `.env.example`)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (pooler), `MASTER_ENCRYPTION_KEY`, `SUPER_ADMIN_EMAILS`,
-`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, optional `NEXT_PUBLIC_CONTACT_EMAIL` (privacy/terms contact), optional `GOOGLE_A_CLIENT_ID/SECRET` (Drive, project A), `GOOGLE_B_CLIENT_ID/SECRET` (Gmail, project B) and `GEMINI_API_KEY` / `GEMINI_MODEL` (amount reading; free tier may train on content, see ADR 0008); test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
+`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, optional `UPSTASH_REDIS_REST_URL/TOKEN` (shared cache), `NEXT_PUBLIC_CONTACT_EMAIL` + `NEXT_PUBLIC_OPERATOR_NAME` (privacy/terms), `GEMINI_NO_TRAINING_CONFIRMED=1` (Gemini stays off without it), optional `GOOGLE_A_CLIENT_ID/SECRET` (Drive, project A), `GOOGLE_B_CLIENT_ID/SECRET` (Gmail, project B) and `GEMINI_API_KEY` / `GEMINI_MODEL` (amount reading; free tier may train on content, see ADR 0008); test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
 
 ## Current status
 - **Phase 1 (foundation) done**: schema + migrations + RLS, envelope crypto, Google sign-in via Supabase with allowlist, super-admin page, orgs, invites,
@@ -94,7 +94,7 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
 - **Phase 3 (sources and run configs) done** (ADR 0007): `sources`, `run_configs`, `run_config_sources` tables; sources = mailbox + sender/subject/attachment rules + PDF password mode
   (none / saved static / Jio-style brackets / custom pattern); source tester (dry run on the real mailbox, Gmail API or IMAP, headers only); run configs = sources + mandatory Drive + folder + default month.
   Pages: Sources, Run configs. `matchesMessage`, `extractSubjectPassword`, `resolvePeriod` are the domain functions Phase 4 reuses.
-- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F44 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
+- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F50 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
   in the sandbox (IMAP, SMTP and PDF encryption are tested against real local servers / generated files); the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
 - **Phase 4 (runs / filing pipeline) done** (ADR 0008): `runs`, `run_items`, `bills`, `bill_files` tables. `StartRun` plans a month (search only), `ProcessNextItem` files one item per call (claim with `FOR UPDATE SKIP LOCKED`,
   download Gmail/IMAP, unlock PDF with `@cantoo/pdf-lib` (RC4/AES all tested), email-body bills become text PDFs, amount read by the text reader or Gemini, upload to Drive folder/month/source, bill + file saved).
@@ -107,9 +107,12 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
   Permissions `reports.send`, `recipients.manage`, `templates.manage`; limits in `SEND_LIMITS` (25 recipients, 40 PDFs, 18 MB, 10 sends/hour). Test mode: `StubMailSender` keeps mail in memory, listed by `/api/test/outbox` (404 outside test mode); an address containing "bounce" is refused.
 - **Phase 7 (legal pages, landing, brand) done** (ADR 0011): public `/`, `/privacy`, `/terms` (`src/app/(legal)`, `LegalShell`), landing with How it works, footer links in the app and on sign-in, `NEXT_PUBLIC_CONTACT_EMAIL` (optional, `lib/contact.ts`), PNG icons + touch icon + social image (`scripts/make-brand-assets.mts`), `manifest.ts`, `robots.ts`, Open Graph tags, email wordmark (styled text) and "Sent with Billfold". Flows F36-F40.
 - **Speed pass done** (ADR 0012): 4 DB connections per instance (it was 1), `getClaims` instead of `getUser`, one membership query per request, SQL aggregates (`BillRepository.summary/reportRows/findMany`) instead of loading every bill, no sealed secrets or email bodies in list queries, partial indexes (migration `0007`), per-render memo (`queries/request-memo.ts`), `loading.tsx` skeleton on every page, `LinkButton`/`TextLink` with pending spinner, transform-only shimmer. Flows F41-F44. Redis cache is still a planned follow-up.
+- **Cache, Drive access and templates done** (ADR 0013, 0014): optional Upstash cache (`Cache` port, version tags, every repository wrapped by `infra/cache/invalidating.ts` with one registry `specs.ts`, `readThrough`, sealed Google token cache, Drive folder id cache, Settings > Clear the cache); Drive scope `drive` with `driveAccess` recorded per connection ("needs more permission" + Reconnect); per-source file name and folder templates (`lib/name-template.ts`, `Mon/mon/MON/Month/...`, migration `0008`); Add bill can attach a document (4 MB, type from first bytes) into a Drive folder; privacy policy and terms rewritten for Google verification; Gemini gated by `GEMINI_NO_TRAINING_CONFIRMED`. Flows F45-F50, F37b.
 - All planned phases are built. Known gaps: none planned. Open items are owner actions only (consent-screen links in Google, optional contact email, reading the legal text, a real-account send test); see the PR notes.
 
 ## Gotchas
+- **The cache must hear about every write.** Repositories are wrapped (`infra/cache/invalidating.ts`); a new repository method must be classified in `infra/cache/specs.ts` (a test fails otherwise). Never write to the database around a repository (direct SQL, dashboard edits) without clearing the cache (Settings, or `POST /api/test/cache` in tests). Page read models go through `cachedRead`/`request-memo.ts` and may only hold data that is the same for everyone in the organisation, never secrets.
+- **Google verification reads `/privacy` without signing in.** The `develop` domain is protected by Vercel Authentication (preview deployment), so Google sees a login page; verify on the production domain or turn protection off while it runs. Any change to what is stored, who receives it or which scopes are asked must update the privacy page and `LEGAL_UPDATED`.
 - **Never go back to one DB connection** (`POOL_SIZE` in `infra/db/client.ts`) and never load "all bills" to count or list months: use `BillRepository.summary` / `reportRows`. List queries must not select sealed secrets or message bodies. New in-page links use `LinkButton` / `TextLink`, and every new page directory gets a `loading.tsx` (skeletons in `components/features/shell/page-skeleton.tsx`). Animate only `transform`/`opacity` of a single layer.
 - **Keep `/privacy` honest.** Any change to what the app stores, who receives data or which Google scopes it asks for must update `src/app/(legal)/privacy/page.tsx` and `LEGAL_UPDATED` (`src/constants/legal.ts`) in the same commit.
 - Input ids must be unique per page: two fields with the same `id` (e.g. several "update password" forms) make a label point at the first one.

@@ -99,7 +99,7 @@ function build() {
   const mailFetch = isTestMode() ? new StubMailFetch() : new LiveMailFetch(google);
   const driveStore = isTestMode() ? new StubDriveStore() : new GoogleDriveStore(google, fetch, cache);
   const textReader = new TextBillExtractor();
-  const reader = !isTestMode() && env().GEMINI_API_KEY ? new GeminiBillExtractor(env().GEMINI_API_KEY as string, env().GEMINI_MODEL ?? "gemini-2.5-flash", textReader) : textReader;
+  const reader = !isTestMode() && env().GEMINI_API_KEY && env().GEMINI_NO_TRAINING_CONFIRMED === "1" ? new GeminiBillExtractor(env().GEMINI_API_KEY as string, env().GEMINI_MODEL ?? "gemini-2.5-flash", textReader) : textReader;
   const pdfTools = new PdfLibTools();
   const recipientRepo = invalidating(new DrizzleRecipientRepository(database), SPECS.recipients, cache, memberIds);
   const templateRepo = invalidating(new DrizzleTemplateRepository(database), SPECS.templates, cache, memberIds);
