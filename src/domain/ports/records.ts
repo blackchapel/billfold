@@ -1,0 +1,51 @@
+import type { PermissionOverrides, Role } from "../policies/permissions";
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  lastActiveOrgId: string | null;
+}
+
+export interface OrgRecord {
+  id: string;
+  name: string;
+  slug: string;
+  defaultCurrency: string;
+}
+
+export interface MemberRecord {
+  orgId: string;
+  userId: string;
+  role: Role;
+  overrides: PermissionOverrides;
+}
+
+export interface MemberWithUser extends MemberRecord {
+  email: string;
+  name: string | null;
+}
+
+export interface MembershipWithOrg extends MemberRecord {
+  org: OrgRecord;
+}
+
+export interface InviteRecord {
+  id: string;
+  orgId: string;
+  codeHash: string;
+  role: Role;
+  maxUses: number;
+  useCount: number;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  createdBy: string;
+}
+
+export interface AllowlistEntry {
+  email: string;
+  note: string | null;
+  addedBy: string | null;
+  createdAt: Date;
+}
