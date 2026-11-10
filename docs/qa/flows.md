@@ -41,10 +41,15 @@ Add or update a flow in the same commit as the feature that changes it.
 | F33 | Cancel a send | Unsent emails skipped, or "Sent" if it finished first | phase6.spec.ts |
 | F34 | Viewer opens recipients, templates, send, a sent email, reports | Can read; no forms, delete, send, retry, cancel; `/templates/new` bounces | phase6.spec.ts |
 | F35 | Reports to Send link | Opens Send with that month selected | phase6.spec.ts |
+| F36 | Signed out: open the front page, read How it works, go to sign-in and its privacy link | Four steps, data paragraph, "invite-only", sign-in notice links to terms and privacy | phase7.spec.ts |
+| F37 | Signed out: privacy and terms | All sections present, Google Limited Use statement and policy link, date, "ask the person who invited you" (no broken mailto), pages link to each other and home | phase7.spec.ts |
+| F38 | Signed in: Privacy and Terms from the app footer | Both open | phase7.spec.ts |
+| F39 | Icons, social image, manifest, robots | Every referenced image is served as PNG, tags present, robots allows only `/`, `/privacy`, `/terms` | phase7.spec.ts |
+| F40 | Create an organisation, rename it, try to delete with the wrong address, delete it | Address unchanged after rename; wrong confirmation refused; afterwards gone for its owner; other organisations untouched | phase7.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable
-Legal pages and landing polish (Phase 7), org deletion through the UI. A Member without `reports.send` calling the send actions directly is covered by unit tests (`tests/unit/application/sends.test.ts`).
+Transferring ownership through the UI (needs a second member; covered by unit tests). A Member without `reports.send` calling the send actions directly is covered by unit tests (`tests/unit/application/sends.test.ts`).
 
 ## Manual checks that need real Google
 Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and download and Gemini (tested only with mocked HTTP), a real send through Gmail (project B, `gmail.send`) and through a real SMTP account: press **Send me a test** on billfold-dev and check the inbox, the attachments open and the table looks right in your mail app (SMTP is tested against a local server and Gmail against mocked HTTP), the Phase 5 screens with a few weeks of real bills (the numbers are covered by unit tests, but only you know what looks right), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.

@@ -31,6 +31,10 @@ Controls are at least 40px tall (44px for primary mobile actions).
 - Forms: label above field, hint below, errors in `role="alert"`.
 - Charts (later): single colour, thin strokes, no gridline clutter.
 
+## Brand files
+One mark (a green rounded square with an envelope outline). `src/app/icon.svg` is the source; `scripts/make-brand-assets.mts` draws `public/icon-192.png`, `public/icon-512.png`, `src/app/apple-icon.png` (full square, 180px) and `src/app/opengraph-image.png` (1200x630, paper background, serif headline, green bar). Rerun the script and commit the output only when the brand changes.
+In email the wordmark is styled text (never an image). Public pages (`/`, `/privacy`, `/terms`) use the same paper/ink look, one column, numbered list instead of cards.
+
 ## Do / Don't
 Do: left-align text, use the serif for page titles, show empty states that say what happens next.
 Don't: gradients, glass, glows, emoji as icons, identical card grids, big rounded cards, decorative illustrations.

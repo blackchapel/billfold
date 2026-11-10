@@ -32,6 +32,7 @@ const lines = (text: string) => escapeHtml(text).replace(/\r?\n/g, "<br>");
 const INK = "#1b1a17";
 const MUTED = "#6b665b";
 const LINE = "#ddd7c9";
+const GREEN = "#1f5c46";
 
 /**
  * The summary email in two forms. The HTML is deliberately plain and uses inline styles so mail apps show it as intended;
@@ -50,6 +51,10 @@ export function renderSummaryEmail(input: SummaryEmailInput): RenderedEmail {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;padding:24px;background:#f6f3ec;color:${INK};font-family:Inter,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5">
   <div style="max-width:600px;margin:0 auto">
+    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 20px"><tr>
+      <td width="22" height="22" style="width:22px;height:22px;background:${GREEN};border-radius:4px;text-align:center;color:#f6f3ec;font-size:13px;line-height:22px" aria-hidden="true">B</td>
+      <td style="padding-left:8px;font-family:Georgia,'Times New Roman',serif;font-size:18px;color:${INK}">Billfold</td>
+    </tr></table>
     <p style="margin:0 0 4px;color:${MUTED};font-size:12px;letter-spacing:.06em;text-transform:uppercase">${escapeHtml(input.orgName)}</p>
     <h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-weight:normal;font-size:26px">${escapeHtml(input.periodLabel)}</h1>
     ${paragraphs(input.intro).map((p) => `<p style="margin:0 0 12px">${lines(p)}</p>`).join("\n    ")}
@@ -76,6 +81,7 @@ export function renderSummaryEmail(input: SummaryEmailInput): RenderedEmail {
     ...table, "", `Total (${input.bills.length}): ${input.totalText}`, `Not paid yet: ${input.unpaidText}`,
     ...(input.attachmentNames.length > 0 ? ["", `Attached: ${input.attachmentNames.join(", ")}`] : []),
     "", ...paragraphs(input.signoff).flatMap((p) => [p, ""]),
+    "--", "Sent with Billfold",
   ].join("\n").trimEnd() + "\n";
 
   return { subject, text, html };

@@ -30,6 +30,13 @@ describe("summary email", () => {
     totalText: "₹3,544.50", unpaidText: "₹1,234.50", attachmentNames: ["jio.pdf", "power.pdf"], ...over,
   });
 
+  it("carries the Billfold wordmark as plain styled text (no remote image to be blocked) and signs the text version", () => {
+    const out = renderSummaryEmail(input());
+    expect(out.html).toContain(">Billfold</td>");
+    expect(out.html).not.toMatch(/<img/i);
+    expect(out.text.trimEnd().endsWith("Sent with Billfold")).toBe(true);
+  });
+
   it("builds a text and an HTML version with the same facts", () => {
     const out = renderSummaryEmail(input());
     expect(out.subject).toBe("Bills for October 2026");
@@ -39,7 +46,7 @@ describe("summary email", () => {
     expect(out.text).toContain("Total (3): ₹3,544.50");
     expect(out.text).toContain("Not paid yet: ₹1,234.50");
     expect(out.text).toContain("Attached: jio.pdf, power.pdf");
-    expect(out.text.endsWith("Regards,\nAsha\n")).toBe(true);
+    expect(out.text.endsWith("Regards,\nAsha\n\n--\nSent with Billfold\n")).toBe(true);
     expect(out.html).toContain("<h1");
     expect(out.html).toContain("₹1,234.50");
     expect(out.html).toContain("not known");
