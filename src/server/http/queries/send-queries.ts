@@ -63,6 +63,11 @@ export async function listSendSummaries(orgId: string): Promise<SendSummaryDto[]
   return (await container().readSends.list(orgId)).map(({ send, counts }) => summary(send, counts));
 }
 
+/** Whether a real (not test) summary has ever been sent, for the Overview checklist. */
+export async function hasSentSummary(orgId: string): Promise<boolean> {
+  return (await container().readSends.recent(orgId)).some((s) => !s.isTest);
+}
+
 export async function getSendDetail(orgId: string, sendId: string): Promise<SendDetailDto | null> {
   const detail = await container().readSends.get(orgId, sendId);
   if (!detail) return null;

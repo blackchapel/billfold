@@ -16,6 +16,8 @@ async function resolveIdentity(): Promise<AuthIdentity | null> {
 /** Identity is read once per request for pages (the cookie check can cost a round trip to the auth provider). */
 const identityOnce = cache(resolveIdentity);
 const membershipsOnce = cache((userId: string) => container().repos.orgs.listForUser(userId));
+/** The outer layout, the organisation layout and the page all ask whether this person is still allowed in; ask the database once. */
+const allowedOnce = cache((email: string) => container().signInGate.isStillAllowed(email));
 
 /**
  * Returns the signed-in, still-allowlisted user, or null.
@@ -26,7 +28,7 @@ export const currentUser = cache(async function currentUser(): Promise<SessionUs
   const identity = await identityOnce();
   if (!identity) return null;
   const gate = container().signInGate;
-  if (!(await gate.isStillAllowed(identity.email))) return null;
+  if (!(await allowedOnce(identity.email))) return null;
   return { ...identity, isSuperAdmin: gate.isSuperAdmin(identity.email) };
 });
 
@@ -52,7 +54,7 @@ async function loadOrg(slug: string, fresh: boolean) {
   const identity = await (fresh ? resolveIdentity() : identityOnce());
   if (!identity) redirect("/sign-in");
   const [allowed, memberships] = await Promise.all([
-    c.signInGate.isStillAllowed(identity.email),
+    fresh ? c.signInGate.isStillAllowed(identity.email) : allowedOnce(identity.email),
     fresh ? c.repos.orgs.listForUser(identity.id) : membershipsOnce(identity.id),
   ]);
   if (!allowed) redirect("/sign-in");

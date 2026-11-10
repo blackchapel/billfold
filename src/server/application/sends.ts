@@ -214,6 +214,9 @@ export class ReadSends {
     return rows.map((send) => ({ send, counts: counts.get(send.id) ?? { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0 } }));
   }
 
+  /** The latest sends without their delivery counts, for screens that only need to know what exists. */
+  recent(orgId: string, limit = 20): Promise<SendSummary[]> { return this.sends.list(orgId, limit); }
+
   async get(orgId: string, id: string): Promise<SendDetail | null> {
     const send = await this.sends.find(orgId, id);
     if (!send) return null;
