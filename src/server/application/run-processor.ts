@@ -4,6 +4,8 @@ import type { AuditLogRepository, BillRepository, ConnectionRepository, RunItemR
 import type { BillRecord, RunCounts, RunItemRecord, RunRecord, SourceRecord } from "@/domain/ports/records";
 import type { BillExtractor, Clock, DriveStore, MailFetch, PdfTools, SecretBox } from "@/domain/ports/services";
 import { needsReview } from "@/domain/value-objects/bill-data";
+import { hasFullDriveAccess, type ConnectionConfig } from "@/domain/value-objects/connection";
+import { renderFileName, renderFolderPath } from "@/lib/name-template";
 import { extractSubjectPassword } from "@/domain/value-objects/password-rule";
 import { errorFields, logEvent } from "@/lib/log";
 import { sha256Hex } from "@/lib/hash";
@@ -110,12 +112,12 @@ export class ProcessNextItem {
     const text = await this.pdf.extractText(bytes);
     const extracted = await this.extractor.extract({ pdfBytes: bytes, text, hints: { sourceName: source.name, periodKey: run.periodKey, currencyCode: DEFAULT_CURRENCY } });
 
-    const fileName = `${run.periodKey} ${source.name} - ${item.attachmentName ?? (item.subject || "email")}`.replace(/(\.pdf)?$/i, ".pdf");
+    const where = this.destination(run, source, item, drive.config);
     let stored;
     try {
       stored = await this.drive.upload({
-        secretJson: await this.secrets.decrypt(orgId, driveCipher), folderPath: [run.driveFolder, run.periodKey, source.name],
-        fileName, bytes, mimeType: "application/pdf",
+        secretJson: await this.secrets.decrypt(orgId, driveCipher), folderPath: where.folderPath,
+        fileName: where.fileName, bytes, mimeType: "application/pdf", avoidDuplicate: true,
       });
     } catch (e) {
       logEvent("run_item_upload_failed", { run: run.id, ...errorFields(e) });
@@ -129,10 +131,27 @@ export class ProcessNextItem {
       messageKey: item.itemKey, createdBy: actorId,
     }, {
       driveConnectionId: drive.id, driveAccount: drive.accountEmail, driveFileId: stored.fileId, driveFolderId: stored.folderId, webViewLink: stored.webViewLink,
-      name: fileName, mimeType: "application/pdf", sizeBytes: bytes.byteLength, sha256: sha256Hex(bytes),
+      name: stored.name, mimeType: "application/pdf", sizeBytes: bytes.byteLength, sha256: sha256Hex(bytes),
     });
     await this.audit.record({ orgId, actorUserId: actorId, action: "bill.filed", entityType: "bill", entityId: bill.id, metadata: { run: run.id, source: source.name, period: run.periodKey, needsReview: bill.needsReview } });
     return bill;
+  }
+
+  /**
+   * Where this PDF goes and what it is called. A source's own templates win; without them it is the standard layout
+   * (the run configuration's folder / month / source name). A folder template needs full Drive access: with the older files-only
+   * access Billfold cannot see folders that already exist and would quietly make a second "bills" folder, so it stops with a clear message.
+   */
+  private destination(run: RunRecord, source: SourceRecord, item: RunItemRecord, driveConfig: ConnectionConfig): { folderPath: string[]; fileName: string } {
+    const ctx = { periodKey: run.periodKey, sourceName: source.name, originalName: item.attachmentName };
+    const fileName = source.fileNameTemplate
+      ? renderFileName(source.fileNameTemplate, ctx)
+      : `${run.periodKey} ${source.name} - ${item.attachmentName ?? (item.subject || "email")}`.replace(/(\.pdf)?$/i, ".pdf");
+    if (!source.folderTemplate) return { folderPath: [run.driveFolder, run.periodKey, source.name], fileName };
+    if (!hasFullDriveAccess(driveConfig)) throw new ItemFailure("This source files into a folder path, which needs more permission on the Google Drive. Open Connections, press Reconnect on the Drive and allow access, then try again.");
+    const folderPath = renderFolderPath(source.folderTemplate, ctx);
+    if (folderPath.length === 0) throw new ItemFailure("This source's folder path came out empty. Edit the source and check the folder path.");
+    return { folderPath, fileName };
   }
 
   /** The PDF to file: the attachment with its password removed, or a PDF built from the email text. */

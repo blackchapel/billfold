@@ -109,10 +109,10 @@ export class Memory {
     revoke: async (_k, token) => { if (this.revokeFails) throw new Error("offline"); this.revoked.push(token); },
   };
   private sourceView(x: SourceRecord & { cipher: string | null }): SourceRecord {
-    return { id: x.id, orgId: x.orgId, name: x.name, connectionId: x.connectionId, matcher: x.matcher, passwordMode: x.passwordMode, passwordPattern: x.passwordPattern, hasStaticPassword: x.cipher !== null, createdAt: x.createdAt };
+    return { id: x.id, orgId: x.orgId, name: x.name, connectionId: x.connectionId, matcher: x.matcher, passwordMode: x.passwordMode, passwordPattern: x.passwordPattern, hasStaticPassword: x.cipher !== null, fileNameTemplate: x.fileNameTemplate ?? null, folderTemplate: x.folderTemplate ?? null, createdAt: x.createdAt };
   }
   sourceRepo: SourceRepository = {
-    create: async (orgId, _by, f, cipher) => { const r = { id: randomUUID(), orgId, ...f, hasStaticPassword: cipher !== null, createdAt: this.now, cipher }; this.sources.set(r.id, r); return this.sourceView(r); },
+    create: async (orgId, _by, f, cipher) => { const r = { id: randomUUID(), orgId, ...f, fileNameTemplate: f.fileNameTemplate ?? null, folderTemplate: f.folderTemplate ?? null, hasStaticPassword: cipher !== null, createdAt: this.now, cipher }; this.sources.set(r.id, r); return this.sourceView(r); },
     update: async (orgId, id, f, cipher) => { const r = this.sources.get(id); if (!r || r.orgId !== orgId) return null; Object.assign(r, f); if (cipher !== undefined) r.cipher = cipher; return this.sourceView(r); },
     list: async (o) => [...this.sources.values()].filter((x) => x.orgId === o).map((x) => this.sourceView(x)),
     find: async (o, id) => { const r = this.sources.get(id); return r && r.orgId === o ? this.sourceView(r) : null; },
@@ -188,8 +188,8 @@ export class Memory {
       this.bills.set(rec.id, rec);
       return rec;
     },
-    createManual: async (orgId, bill) => {
-      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: [] };
+    createManual: async (orgId, bill, file) => {
+      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: file ? [{ ...file, id: randomUUID() }] : [] };
       this.bills.set(rec.id, rec);
       return { ...rec };
     },

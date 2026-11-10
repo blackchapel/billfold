@@ -166,7 +166,7 @@ export interface BillRepository {
   /** Saves the bill and its Drive file together. */
   record(orgId: string, bill: NewBill, file: NewBillFile): Promise<BillRecord>;
   /** A bill typed in by hand: no email, no file. */
-  createManual(orgId: string, bill: NewBill): Promise<BillRecord>;
+  createManual(orgId: string, bill: NewBill, file?: NewBillFile): Promise<BillRecord>;
   find(orgId: string, id: string): Promise<BillRecord | null>;
   list(orgId: string, filter: BillFilter): Promise<BillRecord[]>;
   /** Bills with these ids (files included), in no particular order. */

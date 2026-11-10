@@ -6,6 +6,7 @@ import { PASSWORD_MODE_OPTIONS } from "@/constants/sources";
 import { useActionForm } from "@/hooks/use-action-form";
 import type { ActionState } from "@/types/action";
 import type { ConnectionOption, SourceDto, TesterDto } from "@/types/source";
+import { FilingFields } from "./filing-fields";
 import { TestResults } from "./test-results";
 
 type SaveAction = (p: ActionState | null, f: FormData) => Promise<ActionState>;
@@ -15,6 +16,7 @@ export function SourceForm({ action, testAction, mailboxes, initial }: { action:
   const save = useActionForm<void>(action as never);
   const test = useActionForm<TesterDto>(testAction);
   const [mode, setMode] = useState(initial?.passwordMode ?? "none");
+  const [name, setName] = useState(initial?.name ?? "");
   const inSubject = mode === "subject_brackets" || mode === "subject_pattern";
   // One form, two buttons: "Test" runs the dry run, anything else saves. Neither clears what was typed.
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -25,7 +27,7 @@ export function SourceForm({ action, testAction, mailboxes, initial }: { action:
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-5">
-      <Field name="name" label="Name" defaultValue={initial?.name} required minLength={2} maxLength={60} placeholder="Jio mobile bill" />
+      <Field name="name" label="Name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={60} placeholder="Jio mobile bill" />
       <div className="flex flex-col gap-1.5">
         <label htmlFor="connectionId" className="text-sm font-medium">Read from mailbox</label>
         <select id="connectionId" name="connectionId" required defaultValue={initial?.connectionId ?? ""} className="min-h-10 rounded-md border border-line bg-surface px-3 text-sm">
@@ -59,6 +61,8 @@ export function SourceForm({ action, testAction, mailboxes, initial }: { action:
         <Field name="staticPassword" label="PDF password" type="password" autoComplete="new-password" required={!initial?.hasStaticPassword}
           placeholder={initial?.hasStaticPassword ? "Saved. Type a new one to replace it." : ""} hint="Saved encrypted. It is never shown again." />
       )}
+
+      <FilingFields sourceName={name} initialFile={initial?.fileNameTemplate ?? ""} initialFolder={initial?.folderTemplate ?? ""} />
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={save.pending}>{save.pending ? "Saving…" : "Save source"}</Button>

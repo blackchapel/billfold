@@ -16,8 +16,14 @@ export function ConnectionList({ items, actions }: { items: ConnectionDto[]; act
               <span className="text-muted"> · {CONNECTION_KIND_LABELS[c.kind]}</span>
               {c.label !== c.accountEmail && <span className="block text-xs text-muted">{c.accountEmail}</span>}
             </span>
-            <Badge tone={c.status === "active" ? "good" : "bad"}>{c.status === "active" ? "working" : "needs attention"}</Badge>
+            <span className="flex flex-wrap items-center gap-2">
+              {c.needsMorePermission && <Badge tone="warn">needs more permission</Badge>}
+              <Badge tone={c.status === "active" ? "good" : "bad"}>{c.status === "active" ? "working" : "needs attention"}</Badge>
+            </span>
           </div>
+          {c.needsMorePermission && (
+            <p className="text-xs text-muted">Bills can still be filed in Billfold&rsquo;s own folders. To file into folders you already have (a source&rsquo;s folder path), press Reconnect and allow access to your Drive.</p>
+          )}
           {c.lastError && <p className="text-xs text-danger">{c.lastError}</p>}
           <p className="text-xs text-muted">{c.lastCheckedAt ? `Last checked ${c.lastCheckedAt.toLocaleString("en-IN")}` : "Not checked yet"}</p>
           {actions(c)}

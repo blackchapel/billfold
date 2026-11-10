@@ -11,9 +11,11 @@ export interface SourceDto {
   passwordMode: string;
   passwordPattern: string | null;
   hasStaticPassword: boolean;
+  fileNameTemplate: string | null;
+  folderTemplate: string | null;
 }
 
-export interface ConnectionOption { id: string; label: string; account: string }
+export interface ConnectionOption { id: string; label: string; account: string; /** Drive only: false for a connection made before full access was asked for. */ fullAccess?: boolean }
 
 export interface RunConfigDto {
   id: string;

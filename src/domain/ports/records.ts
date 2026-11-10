@@ -89,6 +89,9 @@ export interface SourceRecord {
   passwordMode: PasswordMode;
   passwordPattern: string | null;
   hasStaticPassword: boolean;
+  /** How filed PDFs are named and where they go; null means the built-in layout. */
+  fileNameTemplate: string | null;
+  folderTemplate: string | null;
   createdAt: Date;
 }
 
@@ -98,6 +101,8 @@ export interface SourceFields {
   matcher: SourceMatcher;
   passwordMode: PasswordMode;
   passwordPattern: string | null;
+  fileNameTemplate?: string | null;
+  folderTemplate?: string | null;
 }
 
 export interface RunConfigRecord {

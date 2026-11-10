@@ -51,10 +51,15 @@ export class DrizzleBillRepository implements BillRepository {
     });
   }
 
-  async createManual(orgId: string, bill: NewBill) {
-    const [b] = await this.db.insert(bills).values({ orgId, ...bill }).returning();
-    if (!b) throw new Error("Bill insert returned no row");
-    return toBill(b, []);
+  async createManual(orgId: string, bill: NewBill, file?: NewBillFile) {
+    return this.db.transaction(async (tx) => {
+      const [b] = await tx.insert(bills).values({ orgId, ...bill }).returning();
+      if (!b) throw new Error("Bill insert returned no row");
+      if (!file) return toBill(b, []);
+      const [f] = await tx.insert(billFiles).values({ orgId, billId: b.id, ...file }).returning();
+      if (!f) throw new Error("Bill file insert returned no row");
+      return toBill(b, [f]);
+    });
   }
 
   async find(orgId: string, id: string) {

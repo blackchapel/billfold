@@ -58,6 +58,7 @@ import { TestSource } from "../application/source-tester";
 import { DeleteSource, ListSources, SaveSource } from "../application/sources";
 import { CompleteGoogleConnect } from "../application/google-connect";
 import { AuthorizationService } from "../application/authorization";
+import { ClearCache } from "../application/clear-cache";
 import { CreateOrg } from "../application/create-org";
 import { AcceptInvite, CreateInvite, RevokeInvite } from "../application/invites";
 import { ChangeMemberRole, RemoveMember, SetMemberOverrides } from "../application/members";
@@ -118,6 +119,7 @@ function build() {
     signInGate: new SignInGate(allowlist, users, superAdminEmails()),
     createOrg: new CreateOrg(orgs, users, audit),
     renameOrg: new RenameOrg(orgs, authz, audit),
+    clearCache: new ClearCache(cache, members, authz, audit),
     transferOwnership: new TransferOwnership(members, authz, audit),
     deleteOrg: new DeleteOrg(orgs, authz, audit),
     createInvite: new CreateInvite(invites, authz, codes, systemClock, audit),
@@ -146,7 +148,7 @@ function build() {
     retryRunItems: new RetryRunItems(runRepo, runItemRepo, authz, audit),
     listRuns: new ListRuns(runRepo, runItemRepo, billRepo),
     updateBill: new UpdateBill(billRepo, authz, systemClock, audit),
-    createManualBill: new CreateManualBill(billRepo, authz, systemClock, audit),
+    createManualBill: new CreateManualBill(billRepo, authz, systemClock, audit, { connections, secrets: secretBox, drive: driveStore }),
     markBillChecked: new MarkBillChecked(billRepo, authz, systemClock, audit),
     setBillPaid: new SetBillPaid(billRepo, authz, systemClock, audit),
     setBillDeleted: new SetBillDeleted(billRepo, authz, systemClock, audit),
@@ -166,6 +168,8 @@ function build() {
     retrySendItems: new RetrySendItems(sendRepo, sendItemRepo, authz, audit),
     readSends: new ReadSends(sendRepo, sendItemRepo),
     testOutbox: mailSender instanceof StubMailSender ? mailSender : null,
+    testDrive: driveStore instanceof StubDriveStore ? driveStore : null,
+    testCache: cache instanceof MemoryCache ? cache : null,
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }

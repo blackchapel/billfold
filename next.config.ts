@@ -23,6 +23,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // A bill typed in by hand can carry a file of up to 4 MB (src/constants/bills.ts); Vercel itself refuses bodies over 4.5 MB.
+  experimental: { serverActions: { bodySizeLimit: "4.5mb" } },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

@@ -57,3 +57,11 @@ export async function deleteOrgAction(slug: string, _p: ActionState | null, form
   if (result.ok) redirect("/");
   return result;
 }
+
+/** Forgets everything remembered about this organisation, for when something looks out of date. */
+export async function clearCacheAction(slug: string, _p: ActionState | null): Promise<ActionState> { // eslint-disable-line @typescript-eslint/no-unused-vars
+  const { user, membership } = await requireOrgFresh(slug);
+  const result = await runAction(async () => { await container().clearCache.execute({ actorId: user.id, orgId: membership.orgId }); });
+  revalidatePath(`/${slug}`, "layout");
+  return result;
+}

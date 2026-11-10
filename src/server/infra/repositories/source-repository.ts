@@ -14,13 +14,14 @@ const flag = (r: typeof sources.$inferSelect): SafeRow => ({ ...r, hasPassword: 
 const toRecord = (r: SafeRow): SourceRecord => ({
   id: r.id, orgId: r.orgId, name: r.name, connectionId: r.connectionId,
   matcher: { senders: r.senders, subjectContains: r.subjectContains, attachmentNameContains: r.attachmentNameContains, requireAttachment: r.requireAttachment },
-  passwordMode: r.passwordMode as PasswordMode, passwordPattern: r.passwordPattern, hasStaticPassword: r.hasPassword, createdAt: r.createdAt,
+  passwordMode: r.passwordMode as PasswordMode, passwordPattern: r.passwordPattern, hasStaticPassword: r.hasPassword,
+  fileNameTemplate: r.fileNameTemplate, folderTemplate: r.folderTemplate, createdAt: r.createdAt,
 });
 
 const columns = (f: SourceFields) => ({
   name: f.name, connectionId: f.connectionId, senders: f.matcher.senders, subjectContains: f.matcher.subjectContains,
   attachmentNameContains: f.matcher.attachmentNameContains, requireAttachment: f.matcher.requireAttachment,
-  passwordMode: f.passwordMode, passwordPattern: f.passwordPattern,
+  passwordMode: f.passwordMode, passwordPattern: f.passwordPattern, fileNameTemplate: f.fileNameTemplate ?? null, folderTemplate: f.folderTemplate ?? null,
 });
 
 export class DrizzleSourceRepository implements SourceRepository {

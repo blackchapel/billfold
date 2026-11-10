@@ -98,6 +98,42 @@ describe("StartRun", () => {
     expect([...m.runItems.values()][0]?.attachmentName).toBeNull();
   });
 
+  it("files into a source's own folder path and file name, with the month in the case that was asked for", async () => {
+    const w = await world();
+    const second = await w.source({ name: "Phone", senders: ["jio.com"], fileNameTemplate: "phone-bill_xxxx-{{Mon}}{{yy}}", folderTemplate: "bills/{{MON}}{{year}}/{{source}}" });
+    await new SaveRunConfig(m.runConfigRepo, m.sourceRepo, m.connectionRepo, authz(), m.auditRepo)
+      .execute({ actorId: w.owner.id, orgId: w.org.id, id: w.runConfig.id, name: "Monthly", driveConnectionId: w.drive.id, driveFolder: "Billfold", periodMode: "previous_month", sourceIds: [second.id] });
+    m.mailbox = [message({ id: "1" })];
+    m.emails.set("1", email());
+    const { run } = await w.startRun();
+    await w.drain(run.id);
+    expect(m.uploads[0]).toMatchObject({ folderPath: ["bills", "OCT2026", "Phone"], fileName: "phone-bill_xxxx-Oct26.pdf", avoidDuplicate: true });
+    expect([...m.bills.values()][0]?.files[0]).toMatchObject({ name: "phone-bill_xxxx-Oct26.pdf" });
+  });
+
+  it("keeps the standard layout for a source with no templates, and never overwrites a name already in the folder", async () => {
+    const w = await world();
+    m.mailbox = [message({ id: "1" })];
+    m.emails.set("1", email());
+    await w.drain((await w.startRun()).run.id);
+    expect(m.uploads[0]).toMatchObject({ folderPath: ["Billfold", "2026-10", "Jio"], fileName: "2026-10 Jio - bill.pdf", avoidDuplicate: true });
+  });
+
+  it("stops with a clear message when a folder path is used on a Drive that can only see its own files", async () => {
+    const w = await world();
+    const sourceWithPath = await w.source({ name: "Phone", senders: ["jio.com"], folderTemplate: "bills/{{Mon}}{{yy}}" });
+    await new SaveRunConfig(m.runConfigRepo, m.sourceRepo, m.connectionRepo, authz(), m.auditRepo)
+      .execute({ actorId: w.owner.id, orgId: w.org.id, id: w.runConfig.id, name: "Monthly", driveConnectionId: w.drive.id, driveFolder: "Billfold", periodMode: "previous_month", sourceIds: [sourceWithPath.id] });
+    const drive = m.connections.get(w.drive.id);
+    if (drive) drive.config = {}; // a connection made before full access was asked for
+    m.mailbox = [message({ id: "1" })];
+    m.emails.set("1", email());
+    const last = await w.drain((await w.startRun()).run.id);
+    expect(last.counts).toMatchObject({ failed: 1, done: 0 });
+    expect([...m.runItems.values()][0]?.error).toMatch(/needs more permission.*Reconnect/);
+    expect(m.uploads).toHaveLength(0); // nothing was filed into a second, look-alike folder
+  });
+
   it("skips emails already filed in an earlier run, and finishes at once when nothing is left to do", async () => {
     const w = await world();
     m.mailbox = [message({ id: "1" })];

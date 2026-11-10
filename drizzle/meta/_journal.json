@@ -57,6 +57,13 @@
       "when": 1794342721570,
       "tag": "0007_ordinary_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794345271899,
+      "tag": "0008_next_skin",
+      "breakpoints": true
     }
   ]
 }
