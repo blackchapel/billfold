@@ -11,3 +11,6 @@
 - **Backups.** Supabase free has no point-in-time backup; export periodically (`pg_dump` from Cloud Shell using the direct string).
 - **Rotating secrets.** `CRON_SECRET`: change in Vercel, redeploy. Supabase anon key: rotate in Supabase, update Vercel, redeploy.
   `MASTER_ENCRYPTION_KEY`: see docs/security.md.
+- **Runs.** A run page keeps calling the server until every item is filed. If someone closes the tab mid-run, items stay *Waiting* (or *Filing…* for up to 5 minutes if a request died) and the run
+  carries on when the page is opened again. `maxDuration` is 60 s on the run pages; one item (download, unlock, read, upload) normally takes a few seconds.
+- **Bills and Drive.** The database stores Drive file ids, links and SHA-256 hashes, not the PDFs. If a Drive file is deleted by hand, the bill row stays and its link breaks.

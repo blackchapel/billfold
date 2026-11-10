@@ -23,12 +23,18 @@ Add or update a flow in the same commit as the feature that changes it.
 | F15 | Viewer opens Connections, Sources, Run configs, and the Google start URL | Can look, cannot change, direct URLs bounce | phase2-3.spec.ts |
 | F16 | Delete run config and sources, then remove the connections | Allowed once nothing depends on them | phase2-3.spec.ts |
 | F17 | A connection needs attention | Overview banner appears; a passing Test clears it | phase2-3.spec.ts |
+| F18 | Click every tab several times, rapidly, then back and forward | Each click lands on the right page, current tab highlighted | phase4.spec.ts |
+| F19 | Rename the organisation | New name shows at once in header and sidebar without a reload | phase4.spec.ts |
+| F20 | Overview before any run | Getting-started checklist, no "Latest run" | phase4.spec.ts |
+| F21 | Run a month with a Jio-style locked PDF, a static-password bank PDF (one source with a wrong password), a plain PDF and a bill that is the email body; retry after fixing; run again | Amounts read, Drive links shown, passwords never on the page, wrong password explained and retried, second run skips everything | phase4.spec.ts |
+| F22 | Pause and cancel a run | Filed items stay, the rest skipped with a reason | phase4.spec.ts |
+| F23 | Viewer opens runs | Can read, no start/retry/cancel/pause | phase4.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable (arrive with later phases)
-Runs and retry, review queue, manual bills, reports, trends,
+Review queue, manual bills, reports, trends,
 search, exports, recipients, templates, composer, sending (including a Member without `reports.send` calling the
 endpoint directly), sent log, org deletion.
 
 ## Manual checks that need real Google
-Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester against a real Gmail and a real IMAP mailbox, and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.
+Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and Gemini (both tested only with mocked HTTP), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.

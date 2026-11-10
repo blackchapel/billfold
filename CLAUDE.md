@@ -68,7 +68,7 @@ Secrets never client-side/logged. RLS on every table (deny by default). Invite c
 Test mode (`BILLFOLD_TEST_MODE=1`) is inert in production. Jio PDF passwords redacted everywhere (wired in Phases 3–4).
 
 ## Folder map
-`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/connections/google) ·
+`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/cron/connections, api/connections/google) ·
 `src/components/{ui,features}` · `src/hooks` · `src/domain` · `src/server/{application,http,infra,composition-root}` ·
 `src/lib` · `src/constants` · `src/types` · `drizzle/` SQL migrations · `tests/{unit,integration,e2e,fakes}` · `docs/` · `scripts/`.
 
@@ -80,8 +80,7 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
 
 ## Environment variables (names only; see `.env.example`)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (pooler), `MASTER_ENCRYPTION_KEY`, `SUPER_ADMIN_EMAILS`,
-`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, optional `GOOGLE_A_CLIENT_ID/SECRET` (Drive, project A) and `GOOGLE_B_CLIENT_ID/SECRET` (Gmail, project B); test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
-Later: `GEMINI_API_KEY`.
+`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, optional `GOOGLE_A_CLIENT_ID/SECRET` (Drive, project A), `GOOGLE_B_CLIENT_ID/SECRET` (Gmail, project B) and `GEMINI_API_KEY` / `GEMINI_MODEL` (amount reading; free tier may train on content, see ADR 0008); test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
 
 ## Current status
 - **Phase 1 (foundation) done**: schema + migrations + RLS, envelope crypto, Google sign-in via Supabase with allowlist, super-admin page, orgs, invites,
@@ -95,9 +94,13 @@ Later: `GEMINI_API_KEY`.
 - **Phase 3 (sources and run configs) done** (ADR 0007): `sources`, `run_configs`, `run_config_sources` tables; sources = mailbox + sender/subject/attachment rules + PDF password mode
   (none / saved static / Jio-style brackets / custom pattern); source tester (dry run on the real mailbox, Gmail API or IMAP, headers only); run configs = sources + mandatory Drive + folder + default month.
   Pages: Sources, Run configs. `matchesMessage`, `extractSubjectPassword`, `resolvePeriod` are the domain functions Phase 4 reuses.
-- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F17 + V1 (`docs/qa/flows.md`). Google round trips and the Gmail API search are only exercised with fakes/mocks
-  in the sandbox; the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
-- Not yet built: pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
+- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F23 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
+  in the sandbox (IMAP, SMTP and PDF encryption are tested against real local servers / generated files); the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
+- **Phase 4 (runs / filing pipeline) done** (ADR 0008): `runs`, `run_items`, `bills`, `bill_files` tables. `StartRun` plans a month (search only), `ProcessNextItem` files one item per call (claim with `FOR UPDATE SKIP LOCKED`,
+  download Gmail/IMAP, unlock PDF with `@cantoo/pdf-lib` (RC4/AES all tested), email-body bills become text PDFs, amount read by the text reader or Gemini, upload to Drive folder/month/source, bill + file saved).
+  Run page loops the server action until done; retry, pause, cancel; already-filed emails are skipped in later runs. Overview has a getting-started checklist and the latest run.
+  Navigation fix: `currentUser`/`requireOrg` are per-request cached for pages (`requireOrgFresh` in actions), loading/error boundaries, `NavLink` pending dot, last-org write in `after()`.
+- Not yet built: review/correct flagged bills, reports/insights (P5), sending (P6), legal pages/landing polish (P7). Bills flagged `needs_review` are only visible on the run page until Phase 5.
 - Known gaps: brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet (Phase 7).
 
 ## Gotchas
