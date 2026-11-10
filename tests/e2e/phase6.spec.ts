@@ -143,7 +143,10 @@ test("F32 send: preview, a test to yourself, a real send with one refused addres
   expect(ashas?.text).toContain("Thanks again,");
 
   // Retrying a refused address fails again, up to the limit, and leaves the others alone.
+  const reloaded = page.waitForEvent("load"); // a retry reloads the page to show the fresh list
   await bounced.getByRole("button", { name: "Try again" }).click();
+  await reloaded;
+  await expect(page.locator('li[data-recipient="bounce@example.com"]')).toHaveAttribute("data-status", "failed", { timeout: 60_000 });
   await expect(page.getByTestId("send-status")).toHaveText("Sent with problems", { timeout: 60_000 });
   expect((await outbox(page)).filter((s) => s.to === "asha@example.com")).toHaveLength(1); // nobody got a second copy
 
