@@ -26,3 +26,11 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 
 export const MAX_ITEM_ATTEMPTS = 5;
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/** "2026-12-15" and only real days: 2026-02-31 is refused. */
+export function isIsoDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d && y >= 2000 && y <= 2100;
+}

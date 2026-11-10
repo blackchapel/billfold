@@ -182,11 +182,27 @@ export class Memory {
     existingKeys: async (o, keys) => new Set([...this.bills.values()].filter((b) => b.orgId === o && keys.includes(b.messageKey)).map((b) => b.messageKey)),
     record: async (orgId, bill, file) => {
       if ([...this.bills.values()].some((b) => b.orgId === orgId && b.messageKey === bill.messageKey)) throw new Error("duplicate key value violates unique constraint");
-      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, createdAt: this.now, files: [{ ...file, id: randomUUID() }] };
+      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: [{ ...file, id: randomUUID() }] };
       this.bills.set(rec.id, rec);
       return rec;
     },
-    list: async (o, period) => [...this.bills.values()].filter((b) => b.orgId === o && (!period || b.periodKey === period)),
+    createManual: async (orgId, bill) => {
+      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: [] };
+      this.bills.set(rec.id, rec);
+      return { ...rec };
+    },
+    find: async (o, id) => { const b = this.bills.get(id); return b && b.orgId === o ? { ...b } : null; },
+    list: async (o, f) => [...this.bills.values()].filter((b) =>
+      b.orgId === o && (!f.periodKey || b.periodKey === f.periodKey) && (!f.fromPeriod || b.periodKey >= f.fromPeriod) && (!f.toPeriod || b.periodKey <= f.toPeriod)
+      && (!f.needsReview || b.needsReview) && (!f.unpaid || !b.paidAt)
+      && (!f.search?.trim() || `${b.billerName}\n${b.sourceName}`.toLowerCase().includes(f.search.trim().toLowerCase()))
+      && (f.deleted === "only" ? b.deletedAt !== null : b.deletedAt === null)).map((b) => ({ ...b })),
+    update: async (o, id, patch) => {
+      const b = this.bills.get(id);
+      if (!b || b.orgId !== o) return null;
+      Object.assign(b, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
+      return { ...b };
+    },
   };
   mailFetch: MailFetch = {
     fetch: async (input) => {

@@ -171,7 +171,7 @@ export interface NewRunItem {
 
 export interface NewBill {
   periodKey: string;
-  sourceId: string;
+  sourceId: string | null;
   sourceName: string;
   billerName: string;
   amountMinor: bigint | null;
@@ -179,7 +179,8 @@ export interface NewBill {
   billDate: string | null;
   dueDate: string | null;
   confidence: Confidence;
-  method: "text" | "gemini";
+  /** How the numbers got here: read by the text reader, by Gemini, or typed in by a person. */
+  method: "text" | "gemini" | "manual";
   needsReview: boolean;
   note: string | null;
   messageKey: string;
@@ -204,7 +205,39 @@ export type BillFileRecord = Omit<NewBillFile, "driveConnectionId"> & { id: stri
 export interface BillRecord extends Omit<NewBill, "createdBy" | "sourceId"> {
   id: string;
   orgId: string;
+  /** Null for bills typed in by hand, or once the source was deleted. */
   sourceId: string | null;
+  reviewedAt: Date | null;
+  paidAt: Date | null;
+  deletedAt: Date | null;
   createdAt: Date;
   files: BillFileRecord[];
+}
+
+/** The parts of a bill a person may change, plus its review, paid and deleted marks. Absent keys stay as they are. */
+export interface BillPatch {
+  billerName?: string;
+  amountMinor?: bigint | null;
+  periodKey?: string;
+  billDate?: string | null;
+  dueDate?: string | null;
+  note?: string | null;
+  needsReview?: boolean;
+  reviewedAt?: Date | null;
+  reviewedBy?: string | null;
+  paidAt?: Date | null;
+  deletedAt?: Date | null;
+  deletedBy?: string | null;
+}
+
+export interface BillFilter {
+  periodKey?: string | null;
+  fromPeriod?: string | null;
+  toPeriod?: string | null;
+  needsReview?: boolean;
+  unpaid?: boolean;
+  /** Matches the biller or source name, ignoring case. */
+  search?: string | null;
+  /** Deleted bills are left out unless asked for. */
+  deleted?: "exclude" | "only";
 }

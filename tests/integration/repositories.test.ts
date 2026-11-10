@@ -320,15 +320,59 @@ run("repositories (real Postgres)", () => {
       expect(bill.files).toHaveLength(1);
       expect(bill.files[0]).toMatchObject({ driveFileId: "drive-file-1", sha256: "ab".repeat(32), driveAccount: "d@a.com" });
       await expect(w.bills.record(w.a.id, w.newBill("key-1"), w.newFile(2))).rejects.toThrow();
-      expect(await w.bills.list(w.a.id, null)).toHaveLength(1); // the failed attempt left no orphan file or bill
+      expect(await w.bills.list(w.a.id, {})).toHaveLength(1); // the failed attempt left no orphan file or bill
       await w.bills.record(w.a.id, { ...w.newBill("key-2"), periodKey: "2026-09", amountMinor: null, needsReview: true, confidence: "low", note: "scan" }, w.newFile(3));
-      expect((await w.bills.list(w.a.id, "2026-10")).map((b) => b.messageKey)).toEqual(["key-1"]);
-      expect((await w.bills.list(w.a.id, null)).map((b) => b.periodKey)).toEqual(["2026-10", "2026-09"]);
-      expect((await w.bills.list(w.a.id, "2026-09"))[0]).toMatchObject({ amountMinor: null, needsReview: true, note: "scan" });
-      expect(await w.bills.list(w.b.id, null)).toEqual([]);
+      expect((await w.bills.list(w.a.id, { periodKey: "2026-10" })).map((b) => b.messageKey)).toEqual(["key-1"]);
+      expect((await w.bills.list(w.a.id, {})).map((b) => b.periodKey)).toEqual(["2026-10", "2026-09"]);
+      expect((await w.bills.list(w.a.id, { periodKey: "2026-09" }))[0]).toMatchObject({ amountMinor: null, needsReview: true, note: "scan" });
+      expect(await w.bills.list(w.b.id, {})).toEqual([]);
       expect([...(await w.bills.existingKeys(w.a.id, ["key-1", "key-2", "nope"]))].sort()).toEqual(["key-1", "key-2"]);
       expect([...(await w.bills.existingKeys(w.b.id, ["key-1"]))]).toEqual([]);
       await w.bills.record(w.b.id, w.newBill("key-1"), { ...w.newFile(4), driveConnectionId: w.drive.id }).catch(() => undefined); // same key is fine in another org
+    });
+
+    it("edits, marks paid, soft-deletes and filters bills, and adds one by hand", async () => {
+      const w = await world();
+      const jio = await w.bills.record(w.a.id, w.newBill("jio-oct"), w.newFile(1));
+      const scan = await w.bills.record(w.a.id, { ...w.newBill("scan-oct"), billerName: "Scan Co", amountMinor: null, needsReview: true, confidence: "low", note: "scan" }, w.newFile(2));
+      const sep = await w.bills.record(w.a.id, { ...w.newBill("jio-sep"), periodKey: "2026-09", billerName: "100% Power_Co" }, w.newFile(3));
+      const hand = await w.bills.createManual(w.a.id, { ...w.newBill("manual:1"), sourceId: null, sourceName: "Added by hand", billerName: "Maid", method: "manual" });
+      expect(hand).toMatchObject({ method: "manual", sourceId: null, files: [], amountMinor: 123450n });
+      await expect(w.bills.createManual(w.a.id, { ...w.newBill("manual:1"), sourceId: null })).rejects.toThrow(); // same key twice
+
+      // update: only the keys that are present change; null really clears; other orgs are untouched
+      const when = new Date("2026-11-02T10:00:00Z");
+      const fixed = await w.bills.update(w.a.id, scan.id, { amountMinor: 231_000n, needsReview: false, reviewedAt: when, reviewedBy: w.owner.id, dueDate: "2026-11-20" });
+      expect(fixed).toMatchObject({ amountMinor: 231_000n, needsReview: false, dueDate: "2026-11-20", billerName: "Scan Co", note: "scan", reviewedAt: when });
+      expect(fixed?.files).toHaveLength(1);
+      expect((await w.bills.update(w.a.id, scan.id, { dueDate: null, note: null }))).toMatchObject({ dueDate: null, note: null, amountMinor: 231_000n });
+      expect(await w.bills.update(w.b.id, scan.id, { billerName: "Hacked" })).toBeNull();
+      expect((await w.bills.find(w.a.id, scan.id))?.billerName).toBe("Scan Co");
+      expect(await w.bills.find(w.b.id, scan.id)).toBeNull();
+
+      await w.bills.update(w.a.id, jio.id, { paidAt: when });
+      expect((await w.bills.find(w.a.id, jio.id))?.paidAt).toEqual(when);
+      const names = async (f: Parameters<typeof w.bills.list>[1]) => (await w.bills.list(w.a.id, f)).map((b) => b.billerName).sort();
+      expect(await names({ unpaid: true })).toEqual(["100% Power_Co", "Jio", "Maid", "Scan Co"].filter((n) => n !== "Jio"));
+      expect(await names({ fromPeriod: "2026-10" })).toEqual(["Jio", "Maid", "Scan Co"]);
+      expect(await names({ toPeriod: "2026-09" })).toEqual(["100% Power_Co"]);
+      expect(await names({ needsReview: true })).toEqual([]);
+      expect(await names({ search: "scan" })).toEqual(["Scan Co"]);
+      expect(await names({ search: "100%" })).toEqual(["100% Power_Co"]); // % is a literal character here, not "anything"
+      expect(await names({ search: "_" })).toEqual(["100% Power_Co"]);
+      expect(await names({ search: "%" })).toEqual(["100% Power_Co"]);
+      expect(await names({ search: "Added by" })).toEqual(["Maid"]); // the source name is searched too
+      expect(await names({ search: "hand" })).toEqual(["Maid"]);
+
+      // soft delete keeps the row (and so the "already filed" key), hides it, and restoring brings it back
+      await w.bills.update(w.a.id, sep.id, { deletedAt: when, deletedBy: w.owner.id });
+      expect(await names({})).not.toContain("100% Power_Co");
+      expect(await names({ deleted: "only" })).toEqual(["100% Power_Co"]);
+      expect([...(await w.bills.existingKeys(w.a.id, ["jio-sep"]))]).toEqual(["jio-sep"]);
+      await w.bills.update(w.a.id, sep.id, { deletedAt: null, deletedBy: null });
+      expect(await names({ deleted: "only" })).toEqual([]);
+      expect(await names({})).toContain("100% Power_Co");
+      expect(await w.bills.list(w.b.id, {})).toEqual([]);
     });
 
     it("keeps bills and runs when their source, run configuration or Drive connection is deleted, and cascades with the run", async () => {
@@ -344,12 +388,12 @@ run("repositories (real Postgres)", () => {
       await w.sources.remove(w.a.id, w.source.id);
       expect(await w.runs.find(w.a.id, w.run.id)).toMatchObject({ runConfigId: null, configName: "Monthly" });
       expect((await w.items.list(w.a.id, w.run.id))[0]).toMatchObject({ sourceId: null, sourceName: "Jio", billId: bill.id });
-      expect((await w.bills.list(w.a.id, null))[0]).toMatchObject({ sourceId: null, sourceName: "Jio" });
+      expect((await w.bills.list(w.a.id, {}))[0]).toMatchObject({ sourceId: null, sourceName: "Jio" });
 
       // The Drive connection can be removed once nothing configured uses it; filed bills keep the account name.
       await w.conns.remove(w.a.id, w.drive.id);
       expect((await w.runs.find(w.a.id, w.run.id))?.driveConnectionId).toBeNull();
-      expect((await w.bills.list(w.a.id, null))[0]?.files[0]).toMatchObject({ driveConnectionId: null, driveAccount: "d@a.com", driveFileId: "drive-file-1" });
+      expect((await w.bills.list(w.a.id, {}))[0]?.files[0]).toMatchObject({ driveConnectionId: null, driveAccount: "d@a.com", driveFileId: "drive-file-1" });
       expect(await w.items.list(w.a.id, w.run.id)).toHaveLength(1);
     });
   });

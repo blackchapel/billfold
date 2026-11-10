@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 import type { BillRepository } from "@/domain/ports/repositories";
-import type { BillRecord, NewBill, NewBillFile } from "@/domain/ports/records";
+import type { BillFilter, BillPatch, BillRecord, NewBill, NewBillFile } from "@/domain/ports/records";
 import type { Confidence } from "@/domain/value-objects/bill-data";
 import type { Db } from "../db/create";
 import { billFiles, bills } from "../db/schema";
@@ -16,12 +16,21 @@ const toFile = (f: FileRow) => ({
 const toBill = (b: BillRow, files: FileRow[]): BillRecord => ({
   id: b.id, orgId: b.orgId, periodKey: b.periodKey, sourceId: b.sourceId, sourceName: b.sourceName, billerName: b.billerName,
   amountMinor: b.amountMinor, currency: b.currency, billDate: b.billDate, dueDate: b.dueDate, confidence: b.confidence as Confidence,
-  method: b.method as "text" | "gemini", needsReview: b.needsReview, note: b.note, messageKey: b.messageKey, createdAt: b.createdAt,
-  files: files.map(toFile),
+  method: b.method as BillRecord["method"], needsReview: b.needsReview, note: b.note, messageKey: b.messageKey,
+  reviewedAt: b.reviewedAt, paidAt: b.paidAt, deletedAt: b.deletedAt, createdAt: b.createdAt, files: files.map(toFile),
 });
+
+/** `%` and `_` in what someone types must match themselves, not act as wildcards. */
+const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 export class DrizzleBillRepository implements BillRepository {
   constructor(private readonly db: Db) {}
+
+  private async withFiles(rows: BillRow[], orgId: string): Promise<BillRecord[]> {
+    if (rows.length === 0) return [];
+    const files = await this.db.select().from(billFiles).where(and(eq(billFiles.orgId, orgId), inArray(billFiles.billId, rows.map((r) => r.id))));
+    return rows.map((b) => toBill(b, files.filter((f) => f.billId === b.id)));
+  }
 
   async existingKeys(orgId: string, keys: string[]) {
     const found = new Set<string>();
@@ -42,11 +51,36 @@ export class DrizzleBillRepository implements BillRepository {
     });
   }
 
-  async list(orgId: string, periodKey: string | null) {
-    const rows = await this.db.select().from(bills).where(and(eq(bills.orgId, orgId), periodKey ? eq(bills.periodKey, periodKey) : undefined))
-      .orderBy(desc(bills.periodKey), asc(bills.sourceName), desc(bills.createdAt));
-    if (rows.length === 0) return [];
-    const files = await this.db.select().from(billFiles).where(and(eq(billFiles.orgId, orgId), inArray(billFiles.billId, rows.map((r) => r.id))));
-    return rows.map((b) => toBill(b, files.filter((f) => f.billId === b.id)));
+  async createManual(orgId: string, bill: NewBill) {
+    const [b] = await this.db.insert(bills).values({ orgId, ...bill }).returning();
+    if (!b) throw new Error("Bill insert returned no row");
+    return toBill(b, []);
+  }
+
+  async find(orgId: string, id: string) {
+    const [row] = await this.db.select().from(bills).where(and(eq(bills.orgId, orgId), eq(bills.id, id))).limit(1);
+    return row ? (await this.withFiles([row], orgId))[0] ?? null : null;
+  }
+
+  async list(orgId: string, f: BillFilter) {
+    const search = f.search?.trim();
+    const rows = await this.db.select().from(bills).where(and(
+      eq(bills.orgId, orgId),
+      f.periodKey ? eq(bills.periodKey, f.periodKey) : undefined,
+      f.fromPeriod ? gte(bills.periodKey, f.fromPeriod) : undefined,
+      f.toPeriod ? lte(bills.periodKey, f.toPeriod) : undefined,
+      f.needsReview ? eq(bills.needsReview, true) : undefined,
+      f.unpaid ? isNull(bills.paidAt) : undefined,
+      search ? or(ilike(bills.billerName, likePattern(search)), ilike(bills.sourceName, likePattern(search))) : undefined,
+      f.deleted === "only" ? isNotNull(bills.deletedAt) : isNull(bills.deletedAt),
+    )).orderBy(desc(bills.periodKey), asc(bills.billerName), desc(bills.createdAt));
+    return this.withFiles(rows, orgId);
+  }
+
+  async update(orgId: string, id: string, patch: BillPatch) {
+    // Drop absent keys so "not mentioned" never means "set to null".
+    const set = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as BillPatch;
+    const [row] = await this.db.update(bills).set(set).where(and(eq(bills.orgId, orgId), eq(bills.id, id))).returning();
+    return row ? (await this.withFiles([row], orgId))[0] ?? null : null;
   }
 }

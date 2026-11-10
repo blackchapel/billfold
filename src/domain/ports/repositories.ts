@@ -3,6 +3,8 @@ import type { RunStatus } from "../value-objects/bill-data";
 import type { ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 import type {
   AllowlistEntry,
+  BillFilter,
+  BillPatch,
   BillRecord,
   ConnectionRecord,
   InviteRecord,
@@ -149,9 +151,13 @@ export interface RunItemRepository {
 }
 
 export interface BillRepository {
-  /** Which of these keys already have a bill, so earlier runs' emails are not filed again. */
+  /** Which of these keys already have a bill (deleted ones included, so a deleted bill is not filed again). */
   existingKeys(orgId: string, keys: string[]): Promise<Set<string>>;
   /** Saves the bill and its Drive file together. */
   record(orgId: string, bill: NewBill, file: NewBillFile): Promise<BillRecord>;
-  list(orgId: string, periodKey: string | null): Promise<BillRecord[]>;
+  /** A bill typed in by hand: no email, no file. */
+  createManual(orgId: string, bill: NewBill): Promise<BillRecord>;
+  find(orgId: string, id: string): Promise<BillRecord | null>;
+  list(orgId: string, filter: BillFilter): Promise<BillRecord[]>;
+  update(orgId: string, id: string, patch: BillPatch): Promise<BillRecord | null>;
 }

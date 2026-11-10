@@ -186,7 +186,7 @@ export class ListRuns {
   async detail(orgId: string, runId: string): Promise<RunDetail | null> {
     const run = await this.runs.find(orgId, runId);
     if (!run) return null;
-    const [items, counts, bills] = await Promise.all([this.items.list(orgId, runId), this.runs.counts(orgId, [runId]), this.bills.list(orgId, run.periodKey)]);
+    const [items, counts, bills] = await Promise.all([this.items.list(orgId, runId), this.runs.counts(orgId, [runId]), this.bills.list(orgId, { periodKey: run.periodKey })]);
     return { run, items, counts: counts.get(runId) ?? { pending: 0, processing: 0, done: 0, failed: 0, skipped: 0 }, bills: new Map(bills.map((b) => [b.id, b])) };
   }
 
