@@ -7,7 +7,7 @@ import type { ActionState } from "@/types/action";
 import type { TesterDto } from "@/types/source";
 import { container } from "../../composition-root/container";
 import { runAction } from "../action-result";
-import { requireOrg } from "../session";
+import { requireOrgFresh } from "../session";
 
 const text = (max: number, message: string) => z.string().trim().max(max, message).transform((v) => v || null);
 
@@ -35,7 +35,7 @@ function parse(form: FormData) {
 const invalid = (issue: string | undefined): ActionState<never> => ({ ok: false, message: issue ?? "Check the details and try again.", code: "validation" });
 
 export async function saveSourceAction(slug: string, sourceId: string | null, _p: ActionState | null, form: FormData): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = parse(form);
   if (!parsed.success) return invalid(parsed.error.issues[0]?.message);
   const result = await runAction(async () => {
@@ -50,7 +50,7 @@ export async function saveSourceAction(slug: string, sourceId: string | null, _p
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteSourceAction(slug: string, sourceId: string, _prev: ActionState | null): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const result = await runAction(async () => {
     await container().deleteSource.execute({ actorId: user.id, orgId: membership.orgId, sourceId });
   });
@@ -60,7 +60,7 @@ export async function deleteSourceAction(slug: string, sourceId: string, _prev: 
 
 /** Dry run from the form: nothing is saved, nothing is downloaded. */
 export async function testSourceAction(slug: string, _p: ActionState<TesterDto> | null, form: FormData): Promise<ActionState<TesterDto>> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = parse(form);
   if (!parsed.success) return invalid(parsed.error.issues[0]?.message);
   const { staticPassword: _ignored, ...rules } = parsed.data; // eslint-disable-line @typescript-eslint/no-unused-vars

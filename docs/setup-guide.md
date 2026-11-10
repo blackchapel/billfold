@@ -115,6 +115,7 @@ unrecoverable.** Use a *different* `MASTER_ENCRYPTION_KEY` for develop and produ
 | `CRON_SECRET` | secret from step 3 | same or another |
 | `GOOGLE_A_CLIENT_ID` / `GOOGLE_A_CLIENT_SECRET` | from step 2b (optional until then) | same |
 | `GOOGLE_B_CLIENT_ID` / `GOOGLE_B_CLIENT_SECRET` | from step 2b (optional until then) | same |
+| `GEMINI_API_KEY` (and optional `GEMINI_MODEL`) | optional, see 6b before setting | optional |
 
    In the Add dialog, tick only **Production** for the first column and only **Preview** for the second. For the Preview
    ones you can pin them to the `develop` branch.
@@ -148,7 +149,14 @@ Tables are created by running the SQL files in `drizzle/`. From your phone, use 
 2. **Sources**: **New source** for each kind of bill. Pick the mailbox, list who sends it (an address like `billing@jio.com` or a whole domain like `jio.com`),
    optionally a word the subject must contain, and say how the PDF is locked (not locked, one saved password, or the password written in the email subject
    in brackets, as Jio does). Press **Test against mailbox**: it lists matching emails from the last 90 days with passwords hidden, and nothing is downloaded or saved.
-3. **Run configs**: **New run configuration**: tick the sources, choose the Drive and a folder name, and the default month. Running comes in the next phase.
+3. **Run configs**: **New run configuration**: tick the sources, choose the Drive and a folder name, and the default month.
+4. **Runs**: choose a run configuration and a month, then **Start run**. Billfold lists the matching emails, then files them one by one while you watch: it opens locked PDFs, reads the amount, saves the PDF in
+   Drive under `<folder>/<month>/<source>` and records the bill. Keep the page open until it says *Finished*; if you close it, open the run again to carry on. Items that fail show why
+   (for example a wrong PDF password) and can be tried again. Running the same month twice is safe: bills already filed are skipped.
+
+**Reading amounts with Gemini (optional).** Without a key, Billfold reads amounts itself from the PDF text and nothing leaves Billfold (scans and unusual layouts are flagged *needs review*).
+To use Gemini: create a key at aistudio.google.com, add `GEMINI_API_KEY` in Vercel (and optionally `GEMINI_MODEL`, default `gemini-2.5-flash`), redeploy. **Before you do:** on Google's free tier, content you send may be used to improve
+Google's products. Billfold sends only the unlocked bill PDF, but bills are personal. Use a paid key, or leave the key unset, if that is not acceptable.
 
 Things to know: a connection that a source or run configuration uses cannot be removed until those are changed or deleted. Mail read over IMAP is taken from the INBOX only.
 Gmail connections made while project B is in *Testing* mode expire after 7 days: the Overview page then shows "needs attention" and **Reconnect** on the Connections page fixes it.
@@ -162,6 +170,8 @@ A daily check (second cron job in `vercel.json`) notices expiries by itself.
 | Google says `redirect_uri_mismatch` | The redirect URI in step 2.3 is not exactly `…supabase.co/auth/v1/callback` |
 | After Google, you return to sign-in with an error | Supabase Redirect URLs (step 2.5) missing the exact `/auth/callback` address |
 | "not authorised" page | The email is not in `/admin` list and not in `SUPER_ADMIN_EMAILS` |
+| A run item says "The password did not open this PDF" | Edit the source: the saved password or the subject pattern is wrong. Then **Try again** on the run |
+| A run item failed with "Could not save the PDF to Google Drive" | Reconnect the Drive on the Connections page, then **Try again** |
 | Connection says "needs attention" | Press **Reconnect** (Google) or **Update app password** (mail). Gmail Testing-mode tokens last 7 days |
 | A source finds no emails | Use **Test against mailbox**: check the sender spelling, loosen subject/attachment rules, or the mail may not be in the INBOX (IMAP) |
 | Database errors on first load | Migrations not run (step 5) or `DATABASE_URL` is the direct string instead of the pooler |

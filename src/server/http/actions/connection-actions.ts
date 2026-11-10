@@ -5,7 +5,7 @@ import { MAIL_SERVER_KINDS } from "@/domain/value-objects/connection";
 import type { ActionState } from "@/types/action";
 import { container } from "../../composition-root/container";
 import { runAction } from "../action-result";
-import { requireOrg } from "../session";
+import { requireOrgFresh } from "../session";
 
 const mailSchema = z.object({
   kind: z.enum(MAIL_SERVER_KINDS),
@@ -19,7 +19,7 @@ const mailSchema = z.object({
 });
 
 export async function addMailAccountAction(slug: string, _p: ActionState | null, form: FormData): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = mailSchema.safeParse({
     kind: form.get("kind"), label: form.get("label") ?? "", host: form.get("host"), port: form.get("port"),
     secure: form.get("secure") === "on", username: form.get("username"), password: form.get("password"),
@@ -35,7 +35,7 @@ export async function addMailAccountAction(slug: string, _p: ActionState | null,
 // useActionState always passes the previous state as the last argument; these actions do not need it.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function testConnectionAction(slug: string, connectionId: string, _prev: ActionState<string> | null): Promise<ActionState<string>> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const result = await runAction(async () => {
     const probe = await container().testConnection.execute({ actorId: user.id, orgId: membership.orgId, connectionId });
     return probe.message;
@@ -46,7 +46,7 @@ export async function testConnectionAction(slug: string, connectionId: string, _
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function removeConnectionAction(slug: string, connectionId: string, _prev: ActionState | null): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const result = await runAction(async () => {
     await container().removeConnection.execute({ actorId: user.id, orgId: membership.orgId, connectionId });
   });
@@ -57,7 +57,7 @@ export async function removeConnectionAction(slug: string, connectionId: string,
 const passwordSchema = z.object({ password: z.string().min(1, "Enter the new app password").max(256) });
 
 export async function updateMailPasswordAction(slug: string, connectionId: string, _p: ActionState | null, form: FormData): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = passwordSchema.safeParse({ password: form.get("password") });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the new app password", code: "validation" };
   const result = await runAction(() => container().updateMailPassword.execute({ actorId: user.id, orgId: membership.orgId, connectionId, password: parsed.data.password }));

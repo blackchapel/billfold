@@ -8,6 +8,9 @@ import { HashedInviteCodes } from "@/server/infra/crypto/invite-codes";
 import { OrgSecretBox } from "@/server/infra/crypto/org-secret-box";
 import { DrizzleAuditLogRepository } from "@/server/infra/repositories/audit-log-repository";
 import { DrizzleConnectionRepository } from "@/server/infra/repositories/connection-repository";
+import { DrizzleBillRepository } from "@/server/infra/repositories/bill-repository";
+import { DrizzleRunItemRepository } from "@/server/infra/repositories/run-item-repository";
+import { DrizzleRunRepository } from "@/server/infra/repositories/run-repository";
 import { DrizzleConnectionUsage } from "@/server/infra/repositories/connection-usage";
 import { DrizzleRunConfigRepository } from "@/server/infra/repositories/run-config-repository";
 import { DrizzleSourceRepository } from "@/server/infra/repositories/source-repository";
@@ -216,6 +219,138 @@ run("repositories (real Postgres)", () => {
       expect(await w.usage.namesUsing(w.b.id, w.mailA.id)).toEqual([]);
       await expect(w.conns.remove(w.a.id, w.mailA.id)).rejects.toThrow();
       await expect(w.conns.remove(w.a.id, w.driveA.id)).rejects.toThrow();
+    });
+  });
+
+  describe("runs, run items and bills", () => {
+    async function world() {
+      const r = build();
+      const conns = new DrizzleConnectionRepository(db);
+      const sources = new DrizzleSourceRepository(db);
+      const runConfigs = new DrizzleRunConfigRepository(db);
+      const runs = new DrizzleRunRepository(db);
+      const items = new DrizzleRunItemRepository(db);
+      const bills = new DrizzleBillRepository(db);
+      const owner = await newUser(r, "o@example.com");
+      const a = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Alpha", defaultCurrency: "INR" });
+      const b = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Beta", defaultCurrency: "INR" });
+      const conn = (orgId: string, kind: "imap" | "google_drive", email: string) =>
+        conns.create({ orgId, kind, label: email, accountEmail: email, config: {}, secretCiphertext: "sealed", createdBy: owner.id });
+      const mail = await conn(a.id, "imap", "m@a.com");
+      const drive = await conn(a.id, "google_drive", "d@a.com");
+      const source = await sources.create(a.id, owner.id, {
+        name: "Jio", connectionId: mail.id, matcher: { senders: ["@jio.com"], subjectContains: null, attachmentNameContains: null, requireAttachment: true }, passwordMode: "none", passwordPattern: null,
+      }, null);
+      const config = await runConfigs.create(a.id, owner.id, { name: "Monthly", driveConnectionId: drive.id, driveFolder: "Billfold", periodMode: "previous_month", sourceIds: [source.id] });
+      const run = await runs.create(a.id, { runConfigId: config.id, configName: config.name, periodKey: "2026-10", driveConnectionId: drive.id, driveFolder: "Billfold", startedBy: owner.id });
+      const item = (n: number, over: Record<string, unknown> = {}) => ({
+        sourceId: source.id, sourceName: "Jio", messageId: `m${n}`, messageDate: new Date(Date.UTC(2026, 9, n)), fromAddress: "billing@jio.com", subject: `Bill ${n}`,
+        attachmentName: "bill.pdf", itemKey: `${source.id}:m${n}:bill.pdf`, status: "pending" as const, error: null, ...over,
+      });
+      const newBill = (key: string) => ({
+        periodKey: "2026-10", sourceId: source.id, sourceName: "Jio", billerName: "Jio", amountMinor: 123450n, currency: "INR", billDate: "2026-10-30", dueDate: "2026-11-15",
+        confidence: "high" as const, method: "text" as const, needsReview: false, note: null, messageKey: key, createdBy: owner.id,
+      });
+      const newFile = (n: number) => ({
+        driveConnectionId: drive.id, driveAccount: "d@a.com", driveFileId: `drive-file-${n}`, driveFolderId: "folder-1", webViewLink: `https://drive.test/${n}`,
+        name: "bill.pdf", mimeType: "application/pdf", sizeBytes: 1234, sha256: "ab".repeat(32),
+      });
+      return { r, conns, sources, runs, items, bills, owner, a, b, mail, drive, source, config, run, item, newBill, newFile };
+    }
+
+    it("stores a run with counts per status, and keeps orgs apart", async () => {
+      const w = await world();
+      await w.items.insertMany(w.a.id, w.run.id, [w.item(1), w.item(2), w.item(3, { status: "skipped", error: "No PDF" }), w.item(4, { status: "failed", error: "boom" })]);
+      await w.items.insertMany(w.a.id, w.run.id, [w.item(1)]); // same key again: ignored, not an error
+      expect((await w.runs.counts(w.a.id, [w.run.id])).get(w.run.id)).toEqual({ pending: 2, processing: 0, done: 0, failed: 1, skipped: 1 });
+      expect((await w.runs.counts(w.b.id, [w.run.id])).get(w.run.id)).toEqual({ pending: 0, processing: 0, done: 0, failed: 0, skipped: 0 });
+      expect(await w.runs.find(w.b.id, w.run.id)).toBeNull();
+      expect(await w.runs.list(w.b.id, 10)).toEqual([]);
+      expect(await w.items.list(w.b.id, w.run.id)).toEqual([]);
+      expect(await w.runs.find(w.a.id, w.run.id)).toMatchObject({ status: "processing", periodKey: "2026-10", driveFolder: "Billfold", driveConnectionId: w.drive.id });
+      await w.runs.setStatus(w.a.id, w.run.id, "completed_with_errors", new Date());
+      expect((await w.runs.find(w.a.id, w.run.id))?.status).toBe("completed_with_errors");
+    });
+
+    it("hands each pending item to exactly one of several simultaneous requests", async () => {
+      const w = await world();
+      await w.items.insertMany(w.a.id, w.run.id, [1, 2, 3, 4].map((n) => w.item(n)));
+      const claims = await Promise.all(Array.from({ length: 4 }, () => w.items.claimNext(w.a.id, w.run.id, new Date(Date.now() - 300_000))));
+      const ids = claims.map((c) => c?.id);
+      expect(ids.every(Boolean)).toBe(true);
+      expect(new Set(ids).size).toBe(4); // nobody got the same item
+      expect(claims.every((c) => c?.status === "processing" && c.attempts === 1)).toBe(true);
+      expect(await w.items.claimNext(w.a.id, w.run.id, new Date(Date.now() - 300_000))).toBeNull(); // nothing left, nothing double-booked
+      expect(await w.items.claimNext(w.b.id, w.run.id, new Date(0))).toBeNull(); // wrong org
+    });
+
+    it("takes back items abandoned by a dead request, but only old ones", async () => {
+      const w = await world();
+      await w.items.insertMany(w.a.id, w.run.id, [w.item(1)]);
+      const first = await w.items.claimNext(w.a.id, w.run.id, new Date(Date.now() - 300_000));
+      expect(await w.items.claimNext(w.a.id, w.run.id, new Date(Date.now() - 300_000))).toBeNull();
+      const again = await w.items.claimNext(w.a.id, w.run.id, new Date(Date.now() + 1000));
+      expect(again).toMatchObject({ id: first?.id, attempts: 2 });
+    });
+
+    it("marks items done and failed, retries only failed ones under the attempt cap, and skips pending ones on cancel", async () => {
+      const w = await world();
+      await w.items.insertMany(w.a.id, w.run.id, [1, 2, 3, 4].map((n) => w.item(n)));
+      const bill = await w.bills.record(w.a.id, w.newBill("k-done"), w.newFile(1));
+      const stale = new Date(Date.now() - 300_000);
+      const one = await w.items.claimNext(w.a.id, w.run.id, stale);
+      const two = await w.items.claimNext(w.a.id, w.run.id, stale);
+      await w.items.markDone(w.a.id, one?.id ?? "", bill.id);
+      await w.items.markFailed(w.a.id, two?.id ?? "", "Could not download this email from the mailbox.");
+      expect(await w.items.find(w.a.id, one?.id ?? "")).toMatchObject({ status: "done", billId: bill.id, error: null });
+      expect(await w.items.find(w.b.id, one?.id ?? "")).toBeNull();
+      expect(await w.items.retryFailed(w.b.id, w.run.id, 5, null)).toBe(0); // other org
+      expect(await w.items.retryFailed(w.a.id, w.run.id, 1, null)).toBe(0); // attempts (1) not below the cap (1)
+      expect(await w.items.retryFailed(w.a.id, w.run.id, 5, "00000000-0000-0000-0000-000000000000")).toBe(0);
+      expect(await w.items.retryFailed(w.a.id, w.run.id, 5, two?.id ?? "")).toBe(1);
+      expect(await w.items.find(w.a.id, two?.id ?? "")).toMatchObject({ status: "pending", error: null });
+      expect(await w.items.skipPending(w.a.id, w.run.id, "Run cancelled")).toBe(3);
+      expect((await w.items.list(w.a.id, w.run.id)).filter((i) => i.status === "skipped").every((i) => i.error === "Run cancelled")).toBe(true);
+    });
+
+    it("records a bill with its Drive file, refuses the same email twice in an org, and lists by month", async () => {
+      const w = await world();
+      const bill = await w.bills.record(w.a.id, w.newBill("key-1"), w.newFile(1));
+      expect(bill).toMatchObject({ amountMinor: 123450n, currency: "INR", billDate: "2026-10-30", dueDate: "2026-11-15", needsReview: false });
+      expect(bill.files).toHaveLength(1);
+      expect(bill.files[0]).toMatchObject({ driveFileId: "drive-file-1", sha256: "ab".repeat(32), driveAccount: "d@a.com" });
+      await expect(w.bills.record(w.a.id, w.newBill("key-1"), w.newFile(2))).rejects.toThrow();
+      expect(await w.bills.list(w.a.id, null)).toHaveLength(1); // the failed attempt left no orphan file or bill
+      await w.bills.record(w.a.id, { ...w.newBill("key-2"), periodKey: "2026-09", amountMinor: null, needsReview: true, confidence: "low", note: "scan" }, w.newFile(3));
+      expect((await w.bills.list(w.a.id, "2026-10")).map((b) => b.messageKey)).toEqual(["key-1"]);
+      expect((await w.bills.list(w.a.id, null)).map((b) => b.periodKey)).toEqual(["2026-10", "2026-09"]);
+      expect((await w.bills.list(w.a.id, "2026-09"))[0]).toMatchObject({ amountMinor: null, needsReview: true, note: "scan" });
+      expect(await w.bills.list(w.b.id, null)).toEqual([]);
+      expect([...(await w.bills.existingKeys(w.a.id, ["key-1", "key-2", "nope"]))].sort()).toEqual(["key-1", "key-2"]);
+      expect([...(await w.bills.existingKeys(w.b.id, ["key-1"]))]).toEqual([]);
+      await w.bills.record(w.b.id, w.newBill("key-1"), { ...w.newFile(4), driveConnectionId: w.drive.id }).catch(() => undefined); // same key is fine in another org
+    });
+
+    it("keeps bills and runs when their source, run configuration or Drive connection is deleted, and cascades with the run", async () => {
+      const w = await world();
+      await w.items.insertMany(w.a.id, w.run.id, [w.item(1)]);
+      const bill = await w.bills.record(w.a.id, w.newBill("key-1"), w.newFile(1));
+      const claimed = await w.items.claimNext(w.a.id, w.run.id, new Date(0));
+      await w.items.markDone(w.a.id, claimed?.id ?? "", bill.id);
+
+      // The configuration and the source can go; the run, its items and the bill stay (with their names kept).
+      const rcRepo = new DrizzleRunConfigRepository(db);
+      await rcRepo.remove(w.a.id, w.config.id);
+      await w.sources.remove(w.a.id, w.source.id);
+      expect(await w.runs.find(w.a.id, w.run.id)).toMatchObject({ runConfigId: null, configName: "Monthly" });
+      expect((await w.items.list(w.a.id, w.run.id))[0]).toMatchObject({ sourceId: null, sourceName: "Jio", billId: bill.id });
+      expect((await w.bills.list(w.a.id, null))[0]).toMatchObject({ sourceId: null, sourceName: "Jio" });
+
+      // The Drive connection can be removed once nothing configured uses it; filed bills keep the account name.
+      await w.conns.remove(w.a.id, w.drive.id);
+      expect((await w.runs.find(w.a.id, w.run.id))?.driveConnectionId).toBeNull();
+      expect((await w.bills.list(w.a.id, null))[0]?.files[0]).toMatchObject({ driveConnectionId: null, driveAccount: "d@a.com", driveFileId: "drive-file-1" });
+      expect(await w.items.list(w.a.id, w.run.id)).toHaveLength(1);
     });
   });
 

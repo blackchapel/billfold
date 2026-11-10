@@ -23,6 +23,10 @@
   `redactSubjectPassword` everywhere they could be shown or stored, and the tester only reports "password found: yes/no". Custom patterns are limited (120 chars, one group, no nested repeats)
   and run against subjects cut to 500 characters. The tester reads headers and attachment *names* only: no bodies or attachment bytes are fetched. Provider errors (which can echo credentials) are replaced by one safe message.
   Removing a Google connection also revokes the grant at Google; if Google is unreachable the removal still happens and the audit entry records `revoked: false`, in which case revoke it at myaccount.google.com/permissions.
+- **Runs.** Bill PDFs are unlocked in memory and go only to the org's own Drive; the database keeps ids, links and a hash, not files. Passwords (static or from a subject) are decrypted or read per item, used once and never written to items, bills, logs
+  or the audit log (tests assert this). Items store only masked subjects and short fixed messages; provider errors are logged as code/type, not shown. With `GEMINI_API_KEY`, only the unlocked PDF plus a fixed instruction is sent to Gemini (never
+  passwords, subjects, addresses or tokens); the free tier may use content to improve Google's products, so the key is optional and off by default. Run actions need `runs.execute`; any member may read runs and bills.
+  Items are claimed with row locks so two screens cannot file the same email, and every filed email has a unique key per org.
 - **Test mode** (`BILLFOLD_TEST_MODE=1`) fakes sign-in. It is inert when `NODE_ENV=production` or `VERCEL_ENV` is set.
 
 Threat model summary: stolen anon key (RLS denies), stolen invite (hashed, expiring, capped, allowlist still required),

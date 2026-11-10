@@ -47,7 +47,7 @@ sequenceDiagram
 ```
 Every request re-checks the allowlist (`isStillAllowed`), so removing someone takes effect at once.
 
-## Data model (Phase 1-3 tables)
+## Data model (Phase 1-4 tables)
 ```mermaid
 erDiagram
   users ||--o{ org_members : has
@@ -61,16 +61,42 @@ erDiagram
   connections ||--o{ sources : "mailbox (restrict delete)"
   connections ||--o{ run_configs : "Drive (restrict delete)"
   run_configs ||--o{ run_config_sources : has
+  orgs ||--o{ runs : "one month, one config"
+  runs ||--o{ run_items : "one email or PDF each"
+  orgs ||--o{ bills : "unique per email"
+  bills ||--o{ bill_files : "Drive copy (ids, hash)"
+  run_items }o--o| bills : "filed as"
   sources ||--o{ run_config_sources : "in"
   orgs }o--|| currencies : default
   platform_allowlist {
     text email
   }
 ```
-Later phases add runs, reports, bills, files, recipients, templates and sends
+Later phases add reports, bills, files, recipients, templates and sends
 (see the brief's data model; migrations are additive).
 
 ## Multi-tenancy
 Every org-owned repository method takes an `orgId`; `AuthorizationService` resolves membership and permissions in one
 place. A non-member gets `not_found`, never `forbidden`, so org existence is not leaked. RLS is enabled on every table
 with no policies (deny by default) as a backstop for the public Supabase key.
+
+## Filing pipeline (Phase 4)
+```mermaid
+sequenceDiagram
+  participant B as Browser (run page)
+  participant S as Server actions
+  participant M as Mailbox (Gmail / IMAP)
+  participant D as Google Drive
+  B->>S: startRun(config, month)
+  S->>M: search each source (headers only)
+  S-->>B: run + pending items (nothing downloaded)
+  loop until no pending item
+    B->>S: processNext(run)
+    S->>S: claim one item (row lock)
+    S->>M: download email / PDF
+    S->>S: unlock PDF, read amount (text reader or Gemini)
+    S->>D: upload PDF to folder/month/source
+    S->>S: save bill + file, mark item done or failed
+    S-->>B: item + counts
+  end
+```

@@ -5,7 +5,7 @@ import { isRole } from "@/domain/policies/permissions";
 import type { ActionState } from "@/types/action";
 import { container } from "../../composition-root/container";
 import { runAction } from "../action-result";
-import { requireOrg } from "../session";
+import { requireOrgFresh } from "../session";
 
 const schema = z.object({
   role: z.string().refine(isRole, "Choose a role"),
@@ -14,7 +14,7 @@ const schema = z.object({
 });
 
 export async function createInviteAction(slug: string, _prev: ActionState<string> | null, form: FormData): Promise<ActionState<string>> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = schema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, message: "Check the role, uses and expiry.", code: "validation" };
   const result = await runAction(async () => {
@@ -29,7 +29,7 @@ export async function createInviteAction(slug: string, _prev: ActionState<string
 }
 
 export async function revokeInviteAction(slug: string, inviteId: string): Promise<void> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   await container().revokeInvite.execute({ userId: user.id, orgId: membership.orgId, inviteId });
   revalidatePath(`/${slug}/invites`);
 }
