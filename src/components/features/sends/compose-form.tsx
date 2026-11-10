@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/field";
@@ -9,6 +8,7 @@ import { useActionForm } from "@/hooks/use-action-form";
 import type { ActionState } from "@/types/action";
 import type { ComposeOptions, PreviewDto } from "@/types/send";
 import { MessageFrame } from "./message-frame";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 type Start = (p: ActionState | null, f: FormData) => Promise<ActionState>;
 type Preview = (f: FormData) => Promise<ActionState<PreviewDto>>;
@@ -41,8 +41,8 @@ export function ComposeForm({ orgSlug, options, start, preview, initialPeriod }:
   if (!canSend) {
     return (
       <div className="max-w-xl text-sm text-muted">
-        {options.periods.length === 0 && <p>There are no bills yet. Run a month on the <Link href={`/${orgSlug}/runs`} className="underline underline-offset-4">Runs</Link> page or add one on the <Link href={`/${orgSlug}/bills`} className="underline underline-offset-4">Bills</Link> page first.</p>}
-        {options.senders.length === 0 && <p className="mt-2">Connect a Gmail account (project B) or an SMTP account to send from on the <Link href={`/${orgSlug}/connections`} className="underline underline-offset-4">Connections</Link> page.</p>}
+        {options.periods.length === 0 && <p>There are no bills yet. Run a month on the <TextLink href={`/${orgSlug}/runs`}>Runs</TextLink> page or add one on the <TextLink href={`/${orgSlug}/bills`}>Bills</TextLink> page first.</p>}
+        {options.senders.length === 0 && <p className="mt-2">Connect a Gmail account (project B) or an SMTP account to send from on the <TextLink href={`/${orgSlug}/connections`}>Connections</TextLink> page.</p>}
       </div>
     );
   }
@@ -74,7 +74,7 @@ export function ComposeForm({ orgSlug, options, start, preview, initialPeriod }:
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">Send to</legend>
         {options.recipients.length === 0
-          ? <p className="text-sm text-muted">Nobody is on the list yet. Add people on the <Link href={`/${orgSlug}/recipients`} className="underline underline-offset-4">Recipients</Link> page. You can still send yourself a test.</p>
+          ? <p className="text-sm text-muted">Nobody is on the list yet. Add people on the <TextLink href={`/${orgSlug}/recipients`}>Recipients</TextLink> page. You can still send yourself a test.</p>
           : (
             <ul className="divide-y divide-line border-y border-line">
               {options.recipients.map((r) => (

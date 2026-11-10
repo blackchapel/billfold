@@ -1,14 +1,13 @@
-import Link from "next/link";
 import { BillActions } from "@/components/features/bills/bill-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { periodLabel } from "@/constants/runs";
 import { markBillCheckedAction, setBillDeletedAction, setBillPaidAction } from "@/server/http/actions/bill-actions";
 import { listBills, parseBillFilter } from "@/server/http/queries/bill-queries";
 import { requireOrg } from "@/server/http/session";
+import { LinkButton, TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Bills" };
 
-const button = "inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-sm font-medium text-accent-ink hover:opacity-90";
 const day = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export default async function Bills({ params, searchParams }: { params: Promise<{ orgSlug: string }>; searchParams: Promise<{ period?: string; q?: string; filter?: string }> }) {
@@ -28,7 +27,7 @@ export default async function Bills({ params, searchParams }: { params: Promise<
       {data.needsReviewCount > 0 && choice !== "review" && (
         <p className="mt-4 rounded-md border border-warn px-4 py-3 text-sm">
           <span className="font-medium">{data.needsReviewCount} {data.needsReviewCount === 1 ? "bill needs" : "bills need"} a check.</span>{" "}
-          <Link href={`/${orgSlug}/bills?filter=review`} className="underline underline-offset-4">Show them</Link>
+          <TextLink href={`/${orgSlug}/bills?filter=review`}>Show them</TextLink>
         </p>
       )}
 
@@ -41,7 +40,7 @@ export default async function Bills({ params, searchParams }: { params: Promise<
           <input id="q" name="q" type="search" defaultValue={q} maxLength={80} placeholder="Biller or source" className={`${select} w-48`} /></div>
         <button type="submit" className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-paper">Apply</button>
         <a href={`/${orgSlug}/bills/export${exportQuery ? `?${exportQuery}` : ""}`} className="inline-flex min-h-10 items-center text-sm underline underline-offset-4">Download CSV</a>
-        {canEdit && <Link href={`/${orgSlug}/bills/new`} className={`${button} ml-auto`}>Add a bill</Link>}
+        {canEdit && <LinkButton href={`/${orgSlug}/bills/new`} className="ml-auto">Add a bill</LinkButton>}
       </form>
 
       {data.rows.length === 0 ? (
@@ -76,7 +75,7 @@ export default async function Bills({ params, searchParams }: { params: Promise<
                   {canEdit && (
                     <td className="py-3">
                       <div className="flex flex-col gap-2">
-                        {!b.deleted && <Link href={`/${orgSlug}/bills/${b.id}`} className="text-sm underline underline-offset-4">Edit</Link>}
+                        {!b.deleted && <TextLink href={`/${orgSlug}/bills/${b.id}`} className="text-sm">Edit</TextLink>}
                         <BillActions paid={b.paid} deleted={b.deleted} needsReview={b.needsReview} actions={{
                           markPaid: setBillPaidAction.bind(null, orgSlug, b.id, true) as never, markUnpaid: setBillPaidAction.bind(null, orgSlug, b.id, false) as never,
                           remove: setBillDeletedAction.bind(null, orgSlug, b.id, true) as never, restore: setBillDeletedAction.bind(null, orgSlug, b.id, false) as never,

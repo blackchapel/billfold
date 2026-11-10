@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BillForm } from "@/components/features/bills/bill-form";
 import { Badge } from "@/components/ui/badge";
 import { saveBillAction } from "@/server/http/actions/bill-actions";
 import { billPeriodChoices, getBill } from "@/server/http/queries/bill-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Check a bill" };
 
@@ -22,7 +22,7 @@ export default async function EditBill({ params }: { params: Promise<{ orgSlug: 
   if (!periods.includes(bill.periodKey)) periods.push(bill.periodKey);
   return (
     <div>
-      <p className="text-sm"><Link href={`/${orgSlug}/bills`} className="underline underline-offset-4">All bills</Link></p>
+      <p className="text-sm"><TextLink href={`/${orgSlug}/bills`}>All bills</TextLink></p>
       <h1 className="mt-2 font-serif text-4xl">{bill.billerName}</h1>
       <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
         <span>{bill.sourceName === "Added by hand" ? "Added by hand" : `From ${bill.sourceName}, ${readers[bill.method] ?? bill.method}`}</span>

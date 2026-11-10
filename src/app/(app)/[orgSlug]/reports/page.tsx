@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { MonthlyChart } from "@/components/features/reports/monthly-chart";
 import { Badge } from "@/components/ui/badge";
 import { periodLabel } from "@/constants/runs";
 import { getReport } from "@/server/http/queries/bill-queries";
 import { requireOrg } from "@/server/http/session";
 import type { DueRowDto } from "@/types/bill";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Reports" };
 
@@ -19,7 +19,7 @@ function DueList({ title, rows, orgSlug, empty }: { title: string; rows: DueRowD
         <ul className="mt-2 divide-y divide-line border-y border-line">
           {rows.map((r) => (
             <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm">
-              <span><Link href={`/${orgSlug}/bills/${r.id}`} className="font-medium underline underline-offset-4">{r.biller}</Link><span className="text-muted"> · {day(r.dueDate)} · {r.whenText}</span></span>
+              <span><TextLink href={`/${orgSlug}/bills/${r.id}`} className="font-medium">{r.biller}</TextLink><span className="text-muted"> · {day(r.dueDate)} · {r.whenText}</span></span>
               <span className="num">{r.amountText ?? "amount not known"}</span>
             </li>
           ))}
@@ -46,10 +46,10 @@ export default async function Reports({ params, searchParams }: { params: Promis
         </div>
         <button type="submit" className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-paper">Show</button>
       </form>
-      {!empty && permissions.includes("reports.send") && <p className="mt-3 text-sm"><Link href={`/${orgSlug}/send?period=${r.periodKey}`} className="underline underline-offset-4">Send {periodLabel(r.periodKey)} as an email summary</Link></p>}
+      {!empty && permissions.includes("reports.send") && <p className="mt-3 text-sm"><TextLink href={`/${orgSlug}/send?period=${r.periodKey}`}>Send {periodLabel(r.periodKey)} as an email summary</TextLink></p>}
 
       {empty ? (
-        <p className="mt-8 rounded-md border border-dashed border-line p-6 text-sm text-muted">No bills yet, so there is nothing to report. Start a run on the <Link href={`/${orgSlug}/runs`} className="underline underline-offset-4">Runs</Link> page, or <Link href={`/${orgSlug}/bills/new`} className="underline underline-offset-4">add a bill by hand</Link>.</p>
+        <p className="mt-8 rounded-md border border-dashed border-line p-6 text-sm text-muted">No bills yet, so there is nothing to report. Start a run on the <TextLink href={`/${orgSlug}/runs`}>Runs</TextLink> page, or <TextLink href={`/${orgSlug}/bills/new`}>add a bill by hand</TextLink>.</p>
       ) : (
         <>
           {r.insights.length > 0 && (

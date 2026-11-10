@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { RUN_STATUS_LABELS, periodLabel } from "@/constants/runs";
 import { needsReviewCount } from "@/server/http/queries/bill-queries";
@@ -7,6 +6,7 @@ import { listSendSummaries } from "@/server/http/queries/send-queries";
 import { listRuns } from "@/server/http/queries/run-queries";
 import { listRunConfigs, listSources } from "@/server/http/queries/source-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Overview" };
 
@@ -32,20 +32,20 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
       {broken.length > 0 && (
         <div role="alert" className="mt-6 rounded-md border border-danger px-4 py-3 text-sm">
           <p className="font-medium text-danger">{broken.length === 1 ? "A connection needs attention" : `${broken.length} connections need attention`}</p>
-          <p className="mt-1 text-muted">{broken.map((c) => c.label).join(", ")} can no longer sign in. <Link href={`/${orgSlug}/connections`} className="underline underline-offset-4">Open Connections</Link> to reconnect.</p>
+          <p className="mt-1 text-muted">{broken.map((c) => c.label).join(", ")} can no longer sign in. <TextLink href={`/${orgSlug}/connections`}>Open Connections</TextLink> to reconnect.</p>
         </div>
       )}
       {toCheck > 0 && (
         <p className="mt-6 rounded-md border border-warn px-4 py-3 text-sm" aria-label="Bills to check">
           <span className="font-medium">{toCheck} {toCheck === 1 ? "bill needs" : "bills need"} a check.</span>{" "}
-          <Link href={`/${orgSlug}/bills?filter=review`} className="underline underline-offset-4">Review {toCheck === 1 ? "it" : "them"}</Link>
+          <TextLink href={`/${orgSlug}/bills?filter=review`}>Review {toCheck === 1 ? "it" : "them"}</TextLink>
         </p>
       )}
       {last && (
         <section className="mt-8 rounded-md border border-line p-5" aria-label="Latest run">
           <h2 className="font-serif text-xl">Latest run</h2>
           <p className="mt-2 text-sm">
-            <Link href={`/${orgSlug}/runs/${last.id}`} className="font-medium underline underline-offset-4">{periodLabel(last.periodKey)}</Link>
+            <TextLink href={`/${orgSlug}/runs/${last.id}`} className="font-medium">{periodLabel(last.periodKey)}</TextLink>
             <span className="text-muted"> · {last.configName} · </span><Badge tone={last.status === "completed" ? "good" : last.status === "completed_with_errors" ? "bad" : "neutral"}>{RUN_STATUS_LABELS[last.status] ?? last.status}</Badge>
           </p>
           <p className="mt-1 text-sm text-muted">{last.counts.done} filed · {last.counts.failed} failed · {last.counts.skipped} skipped · {last.counts.pending + last.counts.processing} waiting</p>
@@ -57,14 +57,14 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
           {steps.map((s, i) => (
             <li key={s.href} className="flex items-start justify-between gap-3 py-3 text-sm">
               <span>
-                <Link href={`/${orgSlug}${s.href}`} className="font-medium underline underline-offset-4">{i + 1}. {s.title}</Link>
+                <TextLink href={`/${orgSlug}${s.href}`} className="font-medium">{i + 1}. {s.title}</TextLink>
                 <span className="block text-xs text-muted">{s.hint}</span>
               </span>
               <Badge tone={s.done ? "good" : "neutral"}>{s.done ? "done" : "to do"}</Badge>
             </li>
           ))}
         </ol>
-        <p className="mt-4 text-sm text-muted">To let other people in, create a code on the <Link href={`/${orgSlug}/invites`} className="underline underline-offset-4">Invites</Link> page.</p>
+        <p className="mt-4 text-sm text-muted">To let other people in, create a code on the <TextLink href={`/${orgSlug}/invites`}>Invites</TextLink> page.</p>
       </section>
     </div>
   );

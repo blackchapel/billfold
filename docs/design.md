@@ -31,6 +31,9 @@ Controls are at least 40px tall (44px for primary mobile actions).
 - Forms: label above field, hint below, errors in `role="alert"`.
 - Charts (later): single colour, thin strokes, no gridline clutter.
 
+## Loading and feedback
+Every page has a `loading.tsx` skeleton (`components/features/shell/page-skeleton.tsx`): still grey blocks with **one** soft band sweeping across the frame (`.shimmer`). The band is the single place a gradient is allowed, and it is animated with `transform` only so it runs on the graphics card without repainting; never animate opacity, size or position of many blocks. Links that open a page use `LinkButton` / `TextLink`, which show a small turning ring at once and a "still loading" note after six seconds. `prefers-reduced-motion` stops all of it.
+
 ## Brand files
 One mark (a green rounded square with an envelope outline). `src/app/icon.svg` is the source; `scripts/make-brand-assets.mts` draws `public/icon-192.png`, `public/icon-512.png`, `src/app/apple-icon.png` (full square, 180px) and `src/app/opengraph-image.png` (1200x630, paper background, serif headline, green bar). Rerun the script and commit the output only when the brand changes.
 In email the wordmark is styled text (never an image). Public pages (`/`, `/privacy`, `/terms`) use the same paper/ink look, one column, numbered list instead of cards.

@@ -46,6 +46,10 @@ Add or update a flow in the same commit as the feature that changes it.
 | F38 | Signed in: Privacy and Terms from the app footer | Both open | phase7.spec.ts |
 | F39 | Icons, social image, manifest, robots | Every referenced image is served as PNG, tags present, robots allows only `/`, `/privacy`, `/terms` | phase7.spec.ts |
 | F40 | Create an organisation, rename it, try to delete with the wrong address, delete it | Address unchanged after rename; wrong confirmation refused; afterwards gone for its owner; other organisations untouched | phase7.spec.ts |
+| F41 | On a deliberately slow server, press New source / New run configuration / Add a bill / New template | A spinner on the button and the page skeleton appear within a moment; the form opens without a reload | phase8.spec.ts |
+| F42 | The skeleton while a page loads; again with "reduce motion" on | Exactly one animation, animating only `transform`; none when reduced motion is asked for | phase8.spec.ts |
+| F43 | A page that takes 9 seconds | After six seconds it says it is still loading and to reload; then the page opens | phase8.spec.ts |
+| F44 | Press five tabs in turn on a slow server | Each shows loading feedback at once and lands on its page | phase8.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable

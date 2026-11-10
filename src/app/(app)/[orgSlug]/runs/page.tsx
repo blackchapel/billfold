@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { StartRunForm } from "@/components/features/runs/start-run-form";
 import { Badge } from "@/components/ui/badge";
 import { RUN_STATUS_LABELS, periodLabel } from "@/constants/runs";
 import { startRunAction } from "@/server/http/actions/run-actions";
 import { listRuns, startRunOptions } from "@/server/http/queries/run-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Runs" };
 // Starting a run searches every source's mailbox, which can take a while on a big mailbox.
@@ -25,7 +25,7 @@ export default async function Runs({ params }: { params: Promise<{ orgSlug: stri
         <section className="mt-6">
           {options.configs.length > 0
             ? <StartRunForm action={startRunAction.bind(null, orgSlug) as never} options={options} />
-            : <p className="text-sm text-muted">To start a run you need a run configuration with at least one source. Set them up on the <Link href={`/${orgSlug}/run-configs`} className="underline underline-offset-4">Run configs</Link> page.</p>}
+            : <p className="text-sm text-muted">To start a run you need a run configuration with at least one source. Set them up on the <TextLink href={`/${orgSlug}/run-configs`}>Run configs</TextLink> page.</p>}
         </section>
       )}
       <h2 className="mt-10 font-serif text-2xl">Recent runs</h2>
@@ -34,7 +34,7 @@ export default async function Runs({ params }: { params: Promise<{ orgSlug: stri
           {runs.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
               <span>
-                <Link href={`/${orgSlug}/runs/${r.id}`} className="font-medium underline underline-offset-4">{periodLabel(r.periodKey)}</Link>
+                <TextLink href={`/${orgSlug}/runs/${r.id}`} className="font-medium">{periodLabel(r.periodKey)}</TextLink>
                 <span className="text-muted"> · {r.configName} · started {when(r.createdAt)}</span>
                 <span className="block text-xs text-muted">{r.counts.done} filed · {r.counts.failed} failed · {r.counts.skipped} skipped · {r.counts.pending + r.counts.processing} waiting</span>
               </span>

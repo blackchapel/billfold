@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 /** Shows that a tab switch is in flight, so a slow server never looks like a click that did nothing. */
 function Pending() {
   const { pending } = useLinkStatus();
-  return <span aria-hidden="true" className={`ml-1 inline-block size-1.5 rounded-full bg-accent transition-opacity ${pending ? "animate-pulse opacity-100" : "opacity-0"}`} />;
+  // Space is kept either way so the tabs do not shift sideways when one is pressed. The ring turns with `transform` only.
+  return <span aria-hidden="true" className={`ml-1.5 inline-block size-[0.8em] text-accent ${pending ? "spinner" : ""}`} />;
 }
 
 export function NavLink({ href, label }: { href: string; label: string }) {

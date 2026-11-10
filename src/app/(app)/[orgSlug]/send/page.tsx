@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ComposeForm } from "@/components/features/sends/compose-form";
 import { Badge } from "@/components/ui/badge";
 import { periodLabel } from "@/constants/runs";
@@ -6,6 +5,7 @@ import { SEND_STATUS_LABELS } from "@/constants/sends";
 import { previewSendAction, startSendAction } from "@/server/http/actions/send-actions";
 import { composeOptions, listSendSummaries } from "@/server/http/queries/send-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Send" };
 // Starting a send builds the email; the emails themselves go out one per request from the progress page.
@@ -23,7 +23,7 @@ export default async function Send({ params, searchParams }: { params: Promise<{
   return (
     <div className="max-w-3xl">
       <h1 className="font-serif text-4xl">Send</h1>
-      <p className="mt-2 text-sm text-muted">Email a month&rsquo;s summary, with the bill PDFs attached, to the people on your <Link href={`/${orgSlug}/recipients`} className="underline underline-offset-4">recipient list</Link>. Look at the preview first.</p>
+      <p className="mt-2 text-sm text-muted">Email a month&rsquo;s summary, with the bill PDFs attached, to the people on your <TextLink href={`/${orgSlug}/recipients`}>recipient list</TextLink>. Look at the preview first.</p>
       {options
         ? <div className="mt-6"><ComposeForm orgSlug={orgSlug} options={options} start={startSendAction.bind(null, orgSlug) as never} preview={previewSendAction.bind(null, orgSlug) as never} initialPeriod={initialPeriod} /></div>
         : <p className="mt-6 text-sm text-muted">You can see what has been sent below. Ask an owner or admin if you need to send a summary.</p>}
@@ -33,7 +33,7 @@ export default async function Send({ params, searchParams }: { params: Promise<{
           {sends.map((s) => (
             <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
               <span>
-                <Link href={`/${orgSlug}/send/${s.id}`} className="font-medium underline underline-offset-4">{periodLabel(s.periodKey)}{s.isTest ? " (test)" : ""}</Link>
+                <TextLink href={`/${orgSlug}/send/${s.id}`} className="font-medium">{periodLabel(s.periodKey)}{s.isTest ? " (test)" : ""}</TextLink>
                 <span className="text-muted"> · {s.billCount} {s.billCount === 1 ? "bill" : "bills"} · {s.totalText} · {when(s.createdAt)}</span>
                 <span className="block text-xs text-muted">{s.counts.sent} sent · {s.counts.failed} failed · {s.counts.skipped} skipped · {s.counts.pending + s.counts.processing} waiting · from {s.fromAccount}</span>
               </span>
