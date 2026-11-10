@@ -1,4 +1,7 @@
 import type { PermissionOverrides, Role } from "../policies/permissions";
+import type { PasswordMode } from "../value-objects/password-rule";
+import type { PeriodMode } from "../value-objects/period";
+import type { SourceMatcher } from "../value-objects/source-rules";
 import type { ConnectionConfig, ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 
 export interface UserRecord {
@@ -73,4 +76,44 @@ export interface NewConnection {
   config: ConnectionConfig;
   secretCiphertext: string;
   createdBy: string;
+}
+
+/** A rule set describing one kind of bill email. A static password is never part of this record. */
+export interface SourceRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  connectionId: string;
+  matcher: SourceMatcher;
+  passwordMode: PasswordMode;
+  passwordPattern: string | null;
+  hasStaticPassword: boolean;
+  createdAt: Date;
+}
+
+export interface SourceFields {
+  name: string;
+  connectionId: string;
+  matcher: SourceMatcher;
+  passwordMode: PasswordMode;
+  passwordPattern: string | null;
+}
+
+export interface RunConfigRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  driveConnectionId: string;
+  driveFolder: string;
+  periodMode: PeriodMode;
+  sourceIds: string[];
+  createdAt: Date;
+}
+
+export interface RunConfigFields {
+  name: string;
+  driveConnectionId: string;
+  driveFolder: string;
+  periodMode: PeriodMode;
+  sourceIds: string[];
 }

@@ -1,5 +1,5 @@
 import { DomainError } from "@/domain/errors/domain-error";
-import type { AuditLogRepository, ConnectionRepository } from "@/domain/ports/repositories";
+import type { AuditLogRepository, ConnectionRepository, ConnectionUsage } from "@/domain/ports/repositories";
 import type { ConnectionRecord } from "@/domain/ports/records";
 import type { Clock, ConnectionProbe, GoogleOAuthClient, ProbeResult, SecretBox } from "@/domain/ports/services";
 import { normalizeEmail } from "@/domain/value-objects/email-address";
@@ -80,12 +80,15 @@ export class RemoveConnection {
     private readonly audit: AuditLogRepository,
     private readonly secrets: SecretBox,
     private readonly google: GoogleOAuthClient,
+    private readonly usage: ConnectionUsage,
   ) {}
 
   async execute(input: { actorId: string; orgId: string; connectionId: string }): Promise<{ revoked: boolean }> {
     await this.authz.require(input.actorId, input.orgId, "connections.manage");
     const connection = await this.repo.find(input.orgId, input.connectionId);
     if (!connection) throw new DomainError("not_found", "Connection not found");
+    const users = await this.usage.namesUsing(input.orgId, connection.id);
+    if (users.length > 0) throw new DomainError("validation", `This connection is used by ${users.slice(0, 3).join(", ")}${users.length > 3 ? " and more" : ""}. Change or delete those first.`);
     const revoked = await this.revokeAtGoogle(connection.kind, input.orgId, connection.id);
     await this.repo.remove(input.orgId, connection.id);
     await this.audit.record({ orgId: input.orgId, actorUserId: input.actorId, action: "connection.removed", entityType: "connection", entityId: connection.id, metadata: { kind: connection.kind, account: connection.accountEmail, revoked } });

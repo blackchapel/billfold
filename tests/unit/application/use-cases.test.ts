@@ -216,7 +216,7 @@ describe("connections", () => {
     const stranger = m.addUser("s@example.com");
     await expectCode(add.execute(mail(stranger.id, org.id)), "not_found");
     const c = await add.execute(mail(owner.id, org.id));
-    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
     await expectCode(new TestConnection(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
   });
   it("rejects a duplicate account", async () => {
@@ -241,8 +241,8 @@ describe("connections", () => {
     const other = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Work", defaultCurrency: "INR" });
     const c = await add.execute(mail(owner.id, org.id));
     expect(await new ListConnections(m.connectionRepo).execute(other.id)).toEqual([]);
-    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google).execute({ actorId: owner.id, orgId: other.id, connectionId: c.id }), "not_found");
-    await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google).execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: other.id, connectionId: c.id }), "not_found");
+    await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
     expect(m.connections.size).toBe(0);
   });
   it("stores a Google refresh token sealed, and reconnecting replaces it instead of duplicating", async () => {
@@ -293,7 +293,7 @@ describe("connections: reconnect, password update, revoke and health sweep", () 
   it("revokes the Google grant when a Google connection is removed, and still removes if Google is unreachable", async () => {
     const { owner, org } = await setup();
     const connect = new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo);
-    const remove = new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google);
+    const remove = new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage);
     const a = await connect.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c", redirectUri: "r" });
     expect(await remove.execute({ actorId: owner.id, orgId: org.id, connectionId: a.id })).toEqual({ revoked: true });
     expect(m.revoked).toEqual(["refresh-1"]);
@@ -305,7 +305,7 @@ describe("connections: reconnect, password update, revoke and health sweep", () 
   });
   it("does not try to revoke mail accounts", async () => {
     const { owner, org, mailbox } = await setup();
-    const out = await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google).execute({ actorId: owner.id, orgId: org.id, connectionId: mailbox.id });
+    const out = await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: org.id, connectionId: mailbox.id });
     expect(out.revoked).toBe(false);
     expect(m.revoked).toEqual([]);
   });

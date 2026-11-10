@@ -1,3 +1,4 @@
+import type { MessageSummary, SourceMatcher } from "../value-objects/source-rules";
 import type { ConnectionConfig, ConnectionKind, GoogleKind } from "../value-objects/connection";
 
 export interface SecretBox {
@@ -44,4 +45,20 @@ export interface GoogleOAuthClient {
 export interface StateSigner {
   sign(payload: Record<string, string | number>, ttlSeconds: number): string;
   verify(token: string): Record<string, string | number> | null;
+}
+
+export interface MailSearchInput {
+  kind: "gmail" | "imap";
+  config: ConnectionConfig;
+  secretJson: string;
+  matcher: SourceMatcher;
+  /** Emails received at or after `since` and before `before`. */
+  since: Date;
+  before: Date;
+  limit: number;
+}
+
+/** Looks in a mailbox for emails that could match a source. Callers still run `matchesMessage` on the results. */
+export interface MailSearch {
+  search(input: MailSearchInput): Promise<MessageSummary[]>;
 }

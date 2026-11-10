@@ -9,6 +9,10 @@ import type {
   MembershipWithOrg,
   NewConnection,
   OrgRecord,
+  RunConfigFields,
+  RunConfigRecord,
+  SourceFields,
+  SourceRecord,
   UserRecord,
 } from "./records";
 
@@ -82,4 +86,31 @@ export interface ConnectionRepository {
   replaceSecret(orgId: string, id: string, secretCiphertext: string): Promise<void>;
   recordCheck(orgId: string, id: string, result: { status: ConnectionStatus; error: string | null; at: Date }): Promise<void>;
   remove(orgId: string, id: string): Promise<void>;
+}
+
+export interface SourceRepository {
+  /** `passwordCiphertext` is the sealed static password, or null when the mode does not use one. */
+  create(orgId: string, createdBy: string, fields: SourceFields, passwordCiphertext: string | null): Promise<SourceRecord>;
+  /** `passwordCiphertext`: undefined keeps the stored one, null clears it, a string replaces it. */
+  update(orgId: string, id: string, fields: SourceFields, passwordCiphertext: string | null | undefined): Promise<SourceRecord | null>;
+  list(orgId: string): Promise<SourceRecord[]>;
+  find(orgId: string, id: string): Promise<SourceRecord | null>;
+  findMany(orgId: string, ids: string[]): Promise<SourceRecord[]>;
+  findByName(orgId: string, name: string): Promise<SourceRecord | null>;
+  findPasswordCiphertext(orgId: string, id: string): Promise<string | null>;
+  remove(orgId: string, id: string): Promise<void>;
+}
+
+export interface RunConfigRepository {
+  create(orgId: string, createdBy: string, fields: RunConfigFields): Promise<RunConfigRecord>;
+  update(orgId: string, id: string, fields: RunConfigFields): Promise<RunConfigRecord | null>;
+  list(orgId: string): Promise<RunConfigRecord[]>;
+  find(orgId: string, id: string): Promise<RunConfigRecord | null>;
+  findByName(orgId: string, name: string): Promise<RunConfigRecord | null>;
+  remove(orgId: string, id: string): Promise<void>;
+}
+
+/** Which sources and run configs depend on a connection, so removing it cannot silently break them. */
+export interface ConnectionUsage {
+  namesUsing(orgId: string, connectionId: string): Promise<string[]>;
 }
