@@ -122,4 +122,25 @@ export interface DriveUploadInput {
 
 export interface DriveStore {
   upload(input: DriveUploadInput): Promise<{ fileId: string; folderId: string; webViewLink: string }>;
+  /** The bytes of a file Billfold put in Drive earlier. Refuses anything larger than `maxBytes`. */
+  download(input: { secretJson: string; fileId: string; maxBytes: number }): Promise<Uint8Array>;
+}
+
+export interface OutgoingEmail {
+  kind: "gmail" | "smtp";
+  config: ConnectionConfig;
+  secretJson: string;
+  /** The sender's own address (the connected account). */
+  from: string;
+  fromName: string;
+  to: { name: string; email: string };
+  subject: string;
+  text: string;
+  html: string;
+  attachments: { filename: string; bytes: Uint8Array; contentType: string }[];
+}
+
+/** Sends one email through a connected Gmail or SMTP account. Throws when the provider refuses or cannot be reached. */
+export interface MailSender {
+  send(email: OutgoingEmail): Promise<void>;
 }

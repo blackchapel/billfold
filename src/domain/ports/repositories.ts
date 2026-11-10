@@ -5,6 +5,7 @@ import type {
   AllowlistEntry,
   BillFilter,
   BillPatch,
+  BillFileRecord,
   BillRecord,
   ConnectionRecord,
   InviteRecord,
@@ -15,14 +16,21 @@ import type {
   NewBillFile,
   NewConnection,
   NewRunItem,
+  NewSend,
   OrgRecord,
+  RecipientRecord,
   RunConfigFields,
   RunConfigRecord,
   RunCounts,
   RunItemRecord,
   RunRecord,
+  SendCounts,
+  SendItemRecord,
+  SendRecord,
+  SendStatus,
   SourceFields,
   SourceRecord,
+  TemplateRecord,
   UserRecord,
 } from "./records";
 
@@ -159,5 +167,50 @@ export interface BillRepository {
   createManual(orgId: string, bill: NewBill): Promise<BillRecord>;
   find(orgId: string, id: string): Promise<BillRecord | null>;
   list(orgId: string, filter: BillFilter): Promise<BillRecord[]>;
+  /** The Drive copies with these ids, for attaching to an email. Other orgs' files are never returned. */
+  findFiles(orgId: string, fileIds: string[]): Promise<BillFileRecord[]>;
   update(orgId: string, id: string, patch: BillPatch): Promise<BillRecord | null>;
+}
+
+export interface RecipientRepository {
+  create(orgId: string, createdBy: string, fields: { name: string; email: string }): Promise<RecipientRecord>;
+  update(orgId: string, id: string, fields: { name: string; email: string }): Promise<RecipientRecord | null>;
+  list(orgId: string): Promise<RecipientRecord[]>;
+  find(orgId: string, id: string): Promise<RecipientRecord | null>;
+  findByEmail(orgId: string, email: string): Promise<RecipientRecord | null>;
+  findMany(orgId: string, ids: string[]): Promise<RecipientRecord[]>;
+  remove(orgId: string, id: string): Promise<void>;
+}
+
+export interface TemplateRepository {
+  create(orgId: string, createdBy: string, fields: { name: string; subject: string; intro: string; signoff: string }): Promise<TemplateRecord>;
+  update(orgId: string, id: string, fields: { name: string; subject: string; intro: string; signoff: string }): Promise<TemplateRecord | null>;
+  list(orgId: string): Promise<TemplateRecord[]>;
+  find(orgId: string, id: string): Promise<TemplateRecord | null>;
+  findByName(orgId: string, name: string): Promise<TemplateRecord | null>;
+  /** Makes this template the default and clears the flag on the others, or clears it everywhere with `null`. */
+  setDefault(orgId: string, id: string | null): Promise<void>;
+  remove(orgId: string, id: string): Promise<void>;
+}
+
+export interface SendRepository {
+  create(orgId: string, send: NewSend): Promise<SendRecord>;
+  find(orgId: string, id: string): Promise<SendRecord | null>;
+  list(orgId: string, limit: number): Promise<SendRecord[]>;
+  setStatus(orgId: string, id: string, status: SendStatus, finishedAt: Date | null): Promise<void>;
+  counts(orgId: string, sendIds: string[]): Promise<Map<string, SendCounts>>;
+  /** How many sends this person started since `since`, for the hourly limit. */
+  countSince(orgId: string, userId: string, since: Date): Promise<number>;
+}
+
+export interface SendItemRepository {
+  insertMany(orgId: string, sendId: string, items: { recipientName: string; recipientEmail: string }[]): Promise<void>;
+  list(orgId: string, sendId: string): Promise<SendItemRecord[]>;
+  find(orgId: string, id: string): Promise<SendItemRecord | null>;
+  /** Atomically takes the next pending item (or one stuck in "processing" since before `staleBefore`), so two requests never send the same email twice. */
+  claimNext(orgId: string, sendId: string, staleBefore: Date): Promise<SendItemRecord | null>;
+  markSent(orgId: string, id: string, at: Date): Promise<void>;
+  markFailed(orgId: string, id: string, error: string): Promise<void>;
+  retryFailed(orgId: string, sendId: string, maxAttempts: number, itemId: string | null): Promise<number>;
+  skipPending(orgId: string, sendId: string, note: string): Promise<number>;
 }

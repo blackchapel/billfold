@@ -52,4 +52,17 @@ export class GoogleDriveStore implements DriveStore {
     });
     return { fileId: file.id, folderId: parent, webViewLink: file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view` };
   }
+
+  async download(input: { secretJson: string; fileId: string; maxBytes: number }) {
+    const { refreshToken } = JSON.parse(input.secretJson) as { refreshToken?: string };
+    if (!refreshToken) throw new Error("No refresh token");
+    const token = await this.google.accessToken("google_drive", refreshToken);
+    const res = await this.http(`${API}/${encodeURIComponent(input.fileId)}?alt=media`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`Drive request failed: ${res.status}`);
+    const declared = Number(res.headers.get("content-length") ?? 0);
+    if (declared > input.maxBytes) throw new Error("File too large");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength > input.maxBytes) throw new Error("File too large");
+    return bytes;
+  }
 }

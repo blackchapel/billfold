@@ -241,3 +241,49 @@ export interface BillFilter {
   /** Deleted bills are left out unless asked for. */
   deleted?: "exclude" | "only";
 }
+
+export interface RecipientRecord { id: string; orgId: string; name: string; email: string; createdAt: Date }
+
+export interface TemplateRecord { id: string; orgId: string; name: string; subject: string; intro: string; signoff: string; isDefault: boolean }
+
+export type SendStatus = "sending" | "sent" | "sent_with_errors" | "failed" | "cancelled";
+export type SendItemStatus = "pending" | "processing" | "sent" | "failed" | "skipped";
+
+/** One "send summary" action, with the finished message exactly as it went out. */
+export interface SendRecord {
+  id: string;
+  orgId: string;
+  periodKey: string;
+  templateName: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+  fromConnectionId: string | null;
+  fromAccount: string;
+  /** `bill_files` ids whose PDFs are attached. */
+  attachmentFileIds: string[];
+  attachmentBytes: number;
+  billCount: number;
+  totalMinor: bigint;
+  isTest: boolean;
+  status: SendStatus;
+  createdBy: string;
+  createdAt: Date;
+  finishedAt: Date | null;
+}
+
+export type NewSend = Omit<SendRecord, "id" | "orgId" | "status" | "createdAt" | "finishedAt">;
+
+export interface SendItemRecord {
+  id: string;
+  sendId: string;
+  orgId: string;
+  recipientName: string;
+  recipientEmail: string;
+  status: SendItemStatus;
+  error: string | null;
+  attempts: number;
+  sentAt: Date | null;
+}
+
+export interface SendCounts { pending: number; processing: number; sent: number; failed: number; skipped: number }

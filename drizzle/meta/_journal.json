@@ -43,6 +43,13 @@
       "when": 1794323048783,
       "tag": "0005_volatile_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794334212104,
+      "tag": "0006_chubby_master_mold",
+      "breakpoints": true
     }
   ]
 }
