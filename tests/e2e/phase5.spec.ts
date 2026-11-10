@@ -196,7 +196,7 @@ test("F28 reports: month totals, a 12 month chart you can hover and read as a ta
   await expect(page.getByRole("region", { name: "Due in the next 7 days" }).getByText("Maid")).toBeVisible();
 
   // Pick last month, where the run filed bills.
-  await page.getByLabel("Month").selectOption({ label: monthName(lastMonth()) });
+  await page.getByLabel("Month", { exact: true }).selectOption({ label: monthName(lastMonth()) });
   await page.getByRole("button", { name: "Show" }).click();
   await expect(page).toHaveURL(/period=\d{4}-\d{2}/);
   await expect(page.getByText(`Total for ${monthName(lastMonth())}`)).toBeVisible();
