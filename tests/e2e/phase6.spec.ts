@@ -103,7 +103,7 @@ test("F32 send: preview, a test to yourself, a real send with one refused addres
   // Preview: the finished subject, what is attached, a warning about unchecked bills, and the HTML in a locked frame.
   await page.getByRole("button", { name: "Preview the email" }).click();
   await expect(page.getByTestId("preview-subject")).toContainText(`Family bills for ${lastMonthName()} (₹`);
-  await expect(page.getByText(/PDFs? attached/)).toBeVisible();
+  await expect(page.getByText(/\d+ PDFs? attached \(/)).toBeVisible();
   const frame = page.locator('iframe[title="How the email will look"]');
   await expect(frame).toHaveAttribute("sandbox", "");
   await expect(page.frameLocator('iframe[title="How the email will look"]').getByText("Jio").first()).toBeVisible();
