@@ -94,3 +94,4 @@ Later: Google project A/B client IDs+secrets, `GEMINI_API_KEY`.
 - Supabase pooler (transaction mode) needs `prepare: false`; use the Session pooler string (port 5432) for migrations; the direct host is IPv6-only and unreachable from GitHub runners.
 - Server actions that `redirect()` abort in-flight navigations; Playwright must wait for the URL change before the next `goto`.
 - `next/font/google` downloads fonts at build time (needs network).
+- Vercel functions are pinned to Mumbai (`bom1`) in `vercel.json`; keep Supabase projects in the same region (ap-south-1) so database round trips stay short. Change both together.
