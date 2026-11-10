@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { logEvent, safeMessage } from "@/lib/log";
 import { env } from "../infra/config/env";
 import { supabaseServer } from "../infra/auth/supabase-server";
 import { isTestMode, TEST_SESSION_COOKIE } from "../infra/auth/test-mode";
@@ -25,6 +26,7 @@ export const authGateway = {
 
   async exchangeCode(code: string): Promise<boolean> {
     const { error } = await (await supabaseServer()).auth.exchangeCodeForSession(code);
+    if (error) logEvent("auth_exchange_failed", { message: safeMessage(error), status: error.status ?? null, code: error.code ?? null });
     return !error;
   },
 

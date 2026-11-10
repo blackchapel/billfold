@@ -1,6 +1,6 @@
 import "server-only";
 import { DomainError } from "@/domain/errors/domain-error";
-import { logEvent, safeMessage } from "@/lib/log";
+import { errorFields, logEvent, safeMessage } from "@/lib/log";
 import { authGateway } from "../composition-root/auth-gateway";
 import { container } from "../composition-root/container";
 
@@ -48,7 +48,7 @@ export async function completeGoogleSignIn({ code, providerError }: CallbackPara
   } catch (e) {
     await authGateway.signOut().catch(() => undefined);
     if (e instanceof DomainError && e.code === "not_allowlisted") return "not_allowlisted";
-    logEvent("auth_callback_failed", { step: "sign_in_gate", message: safeMessage(e) });
+    logEvent("auth_callback_failed", { step: "sign_in_gate", ...errorFields(e) });
     return "error";
   }
 }
