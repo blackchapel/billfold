@@ -1,0 +1,128 @@
+# Setup guide (plain language, step by step)
+
+You will set up three things: **Supabase** (database and login plumbing), **Google Cloud** (the "Sign in with Google"
+button) and **Vercel** (hosting). Everything below is free. Do the steps in order. It all works from a phone browser
+(use "Desktop site" where a page looks cramped). Do not paste secrets into chat; paste them only into the Vercel or
+GitHub boxes described here.
+
+Words used: **env variable** = a named setting stored in Vercel/GitHub instead of in the code, so secrets never sit in the repo.
+
+---
+
+## 0. What you will end up with
+
+| Branch | Where it runs | Purpose |
+|---|---|---|
+| `develop` | Vercel "Preview" deployment at a stable address | You test here |
+| `main` | Vercel "Production" deployment on your domain | Real use |
+
+Every push to `develop` redeploys the preview. Merging `develop` into `main` redeploys production.
+
+---
+
+## 1. Supabase (database)
+
+1. Go to supabase.com, sign in with GitHub, tap **New project**. Name it `billfold`. Pick the region closest to you
+   (for India, "Mumbai" if offered). Set a **database password** and save it in a password manager. Tap Create.
+2. Wait for it to finish (about two minutes).
+3. Tap **Project Settings** (gear) > **API**. Copy:
+   - **Project URL** → this is `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** key → this is `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe to expose; the database denies it everything)
+4. Tap **Connect** (top bar) or **Project Settings > Database > Connection string**:
+   - **Transaction pooler** string (port **6543**) → this is `DATABASE_URL` for Vercel. Replace `[YOUR-PASSWORD]` with your DB password.
+   - **Session pooler** string (port **5432**, host `…pooler.supabase.com`, username `postgres.<project-ref>`) → used only for
+     migrations (step 5). Do **not** use the "Direct connection" string: it is IPv6-only on the free plan and GitHub's runners
+     cannot reach it. If your password has special characters (`@ : / # ? %`), URL-encode them or reset the password to letters and numbers.
+5. Free projects pause after about a week of no activity. Billfold includes a daily keep-alive (`vercel.json`) that prevents this.
+
+Optional but recommended: make a **second** Supabase project (`billfold-dev`) for `develop` so test data never mixes with
+real data. The free plan allows two projects. If you skip it, both branches share one database.
+
+## 2. Google Cloud, project A (sign-in with Google)
+
+1. Go to console.cloud.google.com. Top bar > project picker > **New project**, name it `Billfold Login`.
+2. Menu > **APIs & Services > OAuth consent screen** (may be called "Google Auth Platform").
+   - User type **External**. App name **Billfold**. Support email: yours. Developer contact: yours.
+   - Scopes: only the defaults (**openid, email, profile**). Add nothing else for this project.
+   - Publishing status: **In production** (tap "Publish app"). Basic scopes do not need Google review.
+3. **Credentials > Create credentials > OAuth client ID**. Type **Web application**, name `Billfold login`.
+   - **Authorised redirect URI**: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
+     (your Project URL from step 1 plus `/auth/v1/callback`). Add the `billfold-dev` project's one too if you made it.
+   - Create. Copy the **Client ID** and **Client secret**.
+4. Back in Supabase: **Authentication > Sign In / Providers > Google**. Switch it on, paste the Client ID and Secret, save.
+5. Supabase **Authentication > URL Configuration**:
+   - **Site URL**: your production address (for now your Vercel production URL).
+   - **Redirect URLs**: add each of these (replace names):
+     - `https://YOUR-PRODUCTION-DOMAIN/auth/callback`
+     - `https://billfold-git-develop-YOUR-VERCEL-TEAM.vercel.app/auth/callback`
+     - `http://localhost:3000/auth/callback`
+
+Later phases add Drive (this same project) and a second project B for Gmail; see `docs/google-setup.md` when we get there.
+
+## 3. Secrets you generate yourself
+
+You need two random strings. Do **not** use a random website to make them. Easiest on a phone: open
+**shell.cloud.google.com** (free Cloud Shell, signs in with your Google account) and run:
+
+```
+openssl rand -base64 32     # run once → MASTER_ENCRYPTION_KEY
+openssl rand -hex 24        # run again → CRON_SECRET
+```
+
+Save both in a password manager. **If you lose `MASTER_ENCRYPTION_KEY`, every stored password and token becomes
+unrecoverable.** Use a *different* `MASTER_ENCRYPTION_KEY` for develop and production.
+
+## 4. Vercel (hosting)
+
+1. vercel.com > sign in with GitHub > **Add New > Project** > import `blackchapel/billfold`.
+2. Framework: Next.js (auto-detected). Leave build settings alone.
+3. **Settings > Git**: set **Production Branch** to `main`. (`develop` will automatically become a Preview.)
+4. **Settings > Environment Variables**. Add each variable below. For every one choose the right **environment** tick-boxes
+   (Production for `main`; Preview for `develop`):
+
+| Name | Production value | Preview value |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | production Supabase URL | develop Supabase URL (or same) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | production anon key | develop anon key |
+| `DATABASE_URL` | production **pooler** string (6543) | develop pooler string |
+| `MASTER_ENCRYPTION_KEY` | key #1 | a different key #2 |
+| `SUPER_ADMIN_EMAILS` | your Gmail | your Gmail |
+| `NEXT_PUBLIC_APP_URL` | `https://YOUR-PRODUCTION-DOMAIN` | `https://billfold-git-develop-YOUR-VERCEL-TEAM.vercel.app` |
+| `CRON_SECRET` | secret from step 3 | same or another |
+
+   In the Add dialog, tick only **Production** for the first column and only **Preview** for the second. For the Preview
+   ones you can pin them to the `develop` branch.
+5. **Deployments** > redeploy after adding variables (variables apply to *new* deployments only).
+6. Domain: **Settings > Domains**, add your domain and follow the DNS instructions at your registrar.
+7. Find your exact develop address under **Deployments** by opening the latest `develop` deployment (the "Branch" link).
+   Put that exact address in `NEXT_PUBLIC_APP_URL` (Preview) and in the Supabase Redirect URLs from step 2.
+
+Never add `BILLFOLD_TEST_MODE` or `TEST_DATABASE_URL` to Vercel. Test mode is also blocked in production by code.
+
+## 5. Create the database tables (migrations)
+
+Tables are created by running the SQL files in `drizzle/`. From your phone, use the GitHub Action:
+
+1. GitHub repo > **Settings > Secrets and variables > Actions > New repository secret**:
+   - `DATABASE_URL_DEVELOP` = the **Session pooler** string (port 5432) of the develop database
+   - `DATABASE_URL_PRODUCTION` = the Session pooler string of the production database
+2. **Actions** tab > **Database migrate** > **Run workflow** > choose `develop` > Run. Check for a green tick.
+   Repeat with `production` after you merge to `main`. Run it again whenever a phase adds new migrations.
+
+## 6. First sign-in
+
+1. Open the preview address. Tap **Sign in** > **Continue with Google** with the Gmail in `SUPER_ADMIN_EMAILS`.
+2. You land on "Welcome". Create an organisation.
+3. Open `/admin`, add the Google emails of anyone you want to let in (they must be on this list even with an invite code).
+4. In your org: **Invites** > create a code > send it to them. They sign in, then paste the code.
+
+## 7. When something goes wrong
+
+| Symptom | Likely cause |
+|---|---|
+| "Invalid or missing environment variables: …" | A variable from step 4 is missing for that environment; add and redeploy |
+| Google says `redirect_uri_mismatch` | The redirect URI in step 2.3 is not exactly `…supabase.co/auth/v1/callback` |
+| After Google, you return to sign-in with an error | Supabase Redirect URLs (step 2.5) missing the exact `/auth/callback` address |
+| "not authorised" page | The email is not in `/admin` list and not in `SUPER_ADMIN_EMAILS` |
+| Database errors on first load | Migrations not run (step 5) or `DATABASE_URL` is the direct string instead of the pooler |
+| Supabase project paused | Open it in Supabase and tap Restore; check the daily cron ran under Vercel > Cron Jobs |
