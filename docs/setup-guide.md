@@ -83,6 +83,9 @@ until this is done; they show "not set up yet" and nothing breaks.
 **App passwords instead of Gmail sign-in.** In Billfold > Connections you can add any mailbox that offers IMAP (to read bills) and SMTP (to send).
 For Gmail: Google Account > Security > 2-Step Verification on > **App passwords** > create one. Billfold tests the login before saving it.
 
+**Consent screen links (both projects).** On each project's **OAuth consent screen > Branding**, fill in: **Application home page** `https://YOUR-PRODUCTION-DOMAIN/`, **Application privacy policy link** `https://YOUR-PRODUCTION-DOMAIN/privacy`, **Application terms of service link** `https://YOUR-PRODUCTION-DOMAIN/terms`, and add your domain under **Authorized domains**.
+These pages are public, so Google can open them without signing in (a verified app, project A, needs them to stay reachable). Upload `public/icon-512.png` as the app logo if asked. The privacy page already carries Google's Limited Use statement. **Read `/privacy` and `/terms` once yourself** and change them if anything does not match how you run Billfold; they are plain-language text, not legal advice.
+
 ## 3. Secrets you generate yourself
 
 You need two random strings. Do **not** use a random website to make them. Easiest on a phone: open
@@ -187,5 +190,6 @@ A daily check (second cron job in `vercel.json`) notices expiries by itself.
 | A source finds no emails | Use **Test against mailbox**: check the sender spelling, loosen subject/attachment rules, or the mail may not be in the INBOX (IMAP) |
 | Send says "The email could not be sent" | Check the sending account on the Connections page (**Test**), then **Try again**. If Gmail refuses, **Reconnect** it and check project B lists `gmail.send`. Gmail's own limit is about 500 emails a day |
 | Preview says no PDFs are attached | Too many or too large for one email (40 files / 18 MB); the bills still link to Drive. Send fewer months or untick "Attach the bill PDFs" |
+| Privacy page says "Ask the person who invited you" | Optional: set `NEXT_PUBLIC_CONTACT_EMAIL` in Vercel to an address people can write to, then redeploy |
 | Database errors on first load | Migrations not run (step 5) or `DATABASE_URL` is the direct string instead of the pooler |
 | Supabase project paused | Open it in Supabase and tap Restore; check the daily cron ran under Vercel > Cron Jobs |
