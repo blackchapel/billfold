@@ -114,25 +114,29 @@ test("F26 paying, deleting and restoring; a deleted bill's email is not filed ag
   await expect(row(page, "Maid").getByText("unpaid", { exact: true })).toBeVisible();
 
   // Delete a bill that came from an email, then run the same month again: it must not come back.
-  await row(page, "Power").first().getByRole("button", { name: "Delete" }).click();
-  await expect(row(page, "Power")).toHaveCount(0);
+  // Two bills are called Power (the PDF and the newsletter that is itself a bill); deleting one leaves the other.
+  await expect(row(page, "Power")).toHaveCount(2);
+  await row(page, "Power").filter({ hasText: "₹2,310.00" }).getByRole("button", { name: "Delete" }).click();
+  await expect(row(page, "Power")).toHaveCount(1);
   await page.goto(`${BASE}/runs`);
   await page.getByLabel("Run configuration").selectOption({ label: "Everything" });
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByRole("heading", { name: "Finished", level: 2 })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("0 filed · 0 failed · 5 skipped · 0 waiting")).toBeVisible();
   await page.goto(`${BASE}/bills`);
-  await expect(row(page, "Power")).toHaveCount(0);
+  await expect(row(page, "Power")).toHaveCount(1);
+  await expect(row(page, "Power").getByText("₹2,310.00")).toHaveCount(0);
 
   await page.getByLabel("Show").selectOption("deleted");
   await page.getByRole("button", { name: "Apply" }).click();
   const gone = row(page, "Power");
   await expect(gone.getByText("deleted", { exact: true })).toBeVisible();
   await expect(gone.getByRole("link", { name: "Edit" })).toHaveCount(0); // a deleted bill must be restored before it is changed
+  await expect(gone).toHaveCount(1);
   await gone.getByRole("button", { name: "Restore" }).click();
   await expect(row(page, "Power")).toHaveCount(0);
   await page.goto(`${BASE}/bills`);
-  await expect(row(page, "Power")).toBeVisible();
+  await expect(row(page, "Power")).toHaveCount(2);
 });
 
 test("F27 search, filters and the CSV download", async ({ page, browser }) => {
