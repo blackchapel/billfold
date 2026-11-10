@@ -92,7 +92,7 @@ test("F32 send: preview, a test to yourself, a real send with one refused addres
   await page.getByLabel("Name (optional)").fill("Summary sender");
   await page.getByLabel("Server").fill("smtp.example.com");
   await page.getByLabel("Email address (username)").fill("send@example.com");
-  await page.getByLabel("App password").fill("good-app-password");
+  await page.getByLabel("App password", { exact: true }).fill("good-app-password");
   await page.getByRole("button", { name: "Test and save" }).click();
   await expect(li(page, "Summary sender")).toBeVisible();
 
