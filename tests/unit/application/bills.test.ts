@@ -214,6 +214,11 @@ describe("ReportService", () => {
     expect(sep.trend.at(-1)?.periodKey).toBe("2026-09");
     expect((await service.build(w.org.id, "1999-01")).periodKey).toBe("2026-10"); // nonsense falls back
     expect((await service.build(w.org.id, "2026-11")).periodKey).toBe("2026-11"); // this month is always allowed
+    const empty = await service.build(w.org.id, "2026-03"); // a month with no bills still opens (the chart links to every column)
+    expect(empty).toMatchObject({ periodKey: "2026-03", breakdown: [], month: { count: 0, totalMinor: 0n } });
+    expect(empty.monthsWithBills).toEqual(["2026-10", "2026-09"]);
+    expect((await service.build(w.org.id, "2027-01")).periodKey).toBe("2026-10"); // the future is not a month yet: newest month with bills
+    expect((await service.build(w.org.id, "nonsense")).periodKey).toBe("2026-10");
   });
   it("works for an org with no bills", async () => {
     const w = await world();

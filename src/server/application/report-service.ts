@@ -3,7 +3,7 @@ import type { BillRepository } from "@/domain/ports/repositories";
 import type { BillRecord } from "@/domain/ports/records";
 import type { Clock } from "@/domain/ports/services";
 import { billerBreakdown, buildInsights, dueBills, lastPeriodKeys, periodTotals, type BillerRow, type Insight, type PeriodTotal, type ReportBill } from "@/domain/value-objects/bill-reports";
-import { periodKeyFor } from "@/domain/value-objects/period";
+import { isPeriodKey, periodKeyFor } from "@/domain/value-objects/period";
 
 export const TREND_MONTHS = 12;
 
@@ -34,7 +34,9 @@ export class ReportService {
     const currentKey = periodKeyFor(now, ORG_UTC_OFFSET_MINUTES);
     const all = await this.bills.list(orgId, {});
     const monthsWithBills = [...new Set(all.map((b) => b.periodKey))].sort().reverse();
-    const periodKey = requestedPeriod && (monthsWithBills.includes(requestedPeriod) || requestedPeriod === currentKey) ? requestedPeriod : (monthsWithBills[0] ?? currentKey);
+    // Any real month up to this one can be opened, also one with no bills: the chart links to every column, so each must lead somewhere.
+    const usable = requestedPeriod !== null && isPeriodKey(requestedPeriod) && requestedPeriod >= "2000-01" && requestedPeriod <= currentKey;
+    const periodKey = usable ? requestedPeriod : (monthsWithBills[0] ?? currentKey);
 
     const keys = lastPeriodKeys(periodKey, TREND_MONTHS);
     // Overdue and upcoming bills and the insights look at every bill, not only the chosen window: a bill from four months ago can still be unpaid.
