@@ -1,0 +1,26 @@
+name: Database migrate
+
+# Run by hand from the Actions tab (works from a phone). Applies the SQL files in ./drizzle.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which database
+        type: choice
+        options: [develop, production]
+        default: develop
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.target == 'production' && 'main' || 'develop' }}" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+        env:
+          # Use the DIRECT connection string (port 5432) for migrations.
+          DATABASE_URL: ${{ inputs.target == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_DEVELOP }}
