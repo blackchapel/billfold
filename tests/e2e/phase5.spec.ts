@@ -11,7 +11,8 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const inDays = (n: number) => iso(new Date(istToday().getTime() + n * 86_400_000));
 const monthName = (d: Date) => d.toLocaleString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 const lastMonth = () => { const t = istToday(); return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 1, 15)); };
-const row = (page: Page, text: string | RegExp) => page.locator("tbody tr", { hasText: text });
+// Earlier flows left bills such as "Jio again", so match the biller exactly rather than by a piece of its text.
+const row = (page: Page, biller: string) => page.locator(`tbody tr[data-bill="${biller}"]`);
 
 async function addManual(page: Page, f: { biller: string; amount: string; due?: string }) {
   await page.goto(`${BASE}/bills/new`);
