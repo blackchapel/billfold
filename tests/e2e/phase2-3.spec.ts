@@ -218,16 +218,16 @@ test("F17 the overview warns when a connection needs attention, and a passing te
   await page.getByRole("button", { name: "Test and save" }).click();
   await expect(row(page, "Old mailbox").getByText("working")).toBeVisible();
   await page.goto("/sharma-home");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
 
   await breakConnection("old@example.com");
   await page.goto("/sharma-home");
-  await expect(page.getByRole("alert")).toContainText("A connection needs attention");
-  await expect(page.getByRole("alert")).toContainText("Old mailbox");
+  await expect(page.locator("main").getByRole("alert")).toContainText("A connection needs attention");
+  await expect(page.locator("main").getByRole("alert")).toContainText("Old mailbox");
   await page.goto(CONNECTIONS);
   await expect(row(page, "Old mailbox").getByText("needs attention")).toBeVisible();
   await row(page, "Old mailbox").getByRole("button", { name: "Test", exact: true }).click();
   await expect(row(page, "Old mailbox").getByText("working")).toBeVisible();
   await page.goto("/sharma-home");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
 });
