@@ -57,10 +57,10 @@ test("F19 a change made on a page shows straight away, including in the header a
   await page.getByRole("button", { name: "Rename" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await expect(page.getByRole("complementary").getByText("Sharma Household").first()).toBeVisible(); // no reload needed
-  await expect(page.getByRole("banner").getByText("Sharma Household")).toBeVisible();
+  await expect(page.getByRole("banner").locator("p", { hasText: "Sharma Household" })).toBeVisible();
   await page.getByLabel("Organisation name").fill("Sharma Home");
   await page.getByRole("button", { name: "Rename" }).click();
-  await expect(page.getByRole("banner").getByText("Sharma Home", { exact: true })).toBeVisible();
+  await expect(page.getByRole("banner").locator("p", { hasText: /^Sharma Home$/ })).toBeVisible();
 });
 
 test("F20 the overview guides a new set-up and shows the latest run", async ({ page }) => {
