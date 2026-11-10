@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ITEM_STATUS_LABELS, RUN_STATUS_LABELS, periodLabel } from "@/constants/runs";
@@ -17,6 +17,7 @@ interface Props {
 
 const tone = (status: string) => (status === "done" ? "good" : status === "failed" ? "bad" : status === "processing" ? "warn" : "neutral") as "good" | "bad" | "warn" | "neutral";
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
+const settledOf = (c: RunCountsDto) => c.done + c.failed + c.skipped;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function ItemRow({ item, canExecute, onRetry }: { item: RunItemDto; canExecute: boolean; onRetry: (id: string) => void }) {
@@ -50,6 +51,8 @@ export function RunProgress({ initial, canExecute, processNext, cancel, retry }:
   const [paused, setPaused] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Two overlapping requests can answer out of order; never let an older answer move the progress backwards.
+  const furthest = useRef(settledOf(initial.counts));
 
   const total = counts.pending + counts.processing + counts.done + counts.failed + counts.skipped;
   const settled = counts.done + counts.failed + counts.skipped;
@@ -62,13 +65,17 @@ export function RunProgress({ initial, canExecute, processNext, cancel, retry }:
     void (async () => {
       while (!stop) {
         const res = await processNext();
-        if (stop) return;
-        if (!res.ok) { setMessage(res.message); setPaused(true); return; }
+        // Always show what the server just did, even if this loop was told to stop meanwhile (pause, or React restarting
+        // the effect): the item has been filed or has failed for real, and dropping the result would leave it looking "Waiting".
+        if (!res.ok) { if (!stop) { setMessage(res.message); setPaused(true); } return; }
         const { item, counts: next, runStatus, finished } = res.data;
-        setCounts(next);
-        setStatus(runStatus);
+        if (settledOf(next) >= furthest.current) {
+          furthest.current = settledOf(next);
+          setCounts(next);
+          setStatus(runStatus);
+        }
         if (item) setItems((list) => list.map((x) => (x.id === item.id ? item : x)));
-        if (finished) return;
+        if (finished || stop) return;
         if (!item) await sleep(3000); // another screen is filing the last item; check again shortly
       }
     })();
