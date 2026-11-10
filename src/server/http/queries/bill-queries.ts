@@ -82,7 +82,7 @@ export async function getReport(orgId: string, requestedPeriod: string | null): 
     return { id: b.id, biller: b.billerName, dueDate: b.dueDate as string, amountText: b.amountMinor === null ? null : money(b.amountMinor), whenText: d < 0 ? `${-d} day${d === -1 ? "" : "s"} overdue` : d === 0 ? "due today" : `in ${d} day${d === 1 ? "" : "s"}` };
   };
   return {
-    periodKey: r.periodKey, months: [...new Set([...r.monthsWithBills, r.periodKey])].sort().reverse(), trend,
+    periodKey: r.periodKey, hasBills: r.monthsWithBills.length > 0, months: [...new Set([...r.monthsWithBills, r.periodKey])].sort().reverse(), trend,
     axis: { max, ticks: ticks.map((value) => ({ value, label: formatCompact({ minor: BigInt(Math.round(value * 100)), currency: INR }) })) },
     monthTotalText: money(r.month.totalMinor), monthCount: r.month.count, missingAmounts: r.month.missingAmount, unpaidText: money(r.unpaidTotalMinor),
     previousTotalText: previous ? money(previous.totalMinor) : null,

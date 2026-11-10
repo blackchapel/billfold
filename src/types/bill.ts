@@ -38,6 +38,8 @@ export interface DueRowDto { id: string; biller: string; dueDate: string; amount
 
 export interface ReportDto {
   periodKey: string;
+  /** Whether the organisation has any bill at all. A month with none is still a valid month to look at. */
+  hasBills: boolean;
   months: string[];
   trend: TrendPointDto[];
   axis: { max: number; ticks: { value: number; label: string }[] };

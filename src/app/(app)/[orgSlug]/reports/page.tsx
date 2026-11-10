@@ -34,7 +34,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
   const { period } = await searchParams;
   const { membership } = await requireOrg(orgSlug);
   const r = await getReport(membership.orgId, period ?? null);
-  const empty = r.trend.every((p) => p.count === 0);
+  const empty = !r.hasBills;
 
   return (
     <div className="max-w-4xl">
