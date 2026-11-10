@@ -5,7 +5,7 @@ import { isGoogleKind, type GoogleKind } from "@/domain/value-objects/connection
 import { authGateway } from "../composition-root/auth-gateway";
 import { container } from "../composition-root/container";
 import { logEvent, safeMessage } from "@/lib/log";
-import { requireOrg } from "./session";
+import { requireOrgFresh } from "./session";
 
 export const OAUTH_NONCE_COOKIE = "bf_oauth_nonce";
 export const GOOGLE_CALLBACK_PATH = "/api/connections/google/callback";
@@ -17,7 +17,7 @@ export type StartResult = { ok: true; url: string; nonce: string } | { ok: false
 
 /** Step 1: build Google's consent URL. The signed state ties the round trip to this user, org and browser. */
 export async function startGoogleConnect(slug: string, kindParam: string): Promise<StartResult> {
-  const { user, permissions } = await requireOrg(slug);
+  const { user, permissions } = await requireOrgFresh(slug);
   if (!permissions.includes("connections.manage")) return { ok: false, error: "You do not have permission to manage connections." };
   if (!isGoogleKind(kindParam)) return { ok: false, error: "Unknown connection type." };
   const kind: GoogleKind = kindParam;
@@ -39,7 +39,7 @@ export async function finishGoogleConnect(input: FinishInput): Promise<FinishRes
   if (!payload || !slug || !isGoogleKind(kind) || !input.nonceCookie || payload.nonce !== input.nonceCookie) {
     return { slug: null, error: "That connection attempt expired or did not start here. Please try again." };
   }
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   if (user.id !== payload.uid) return { slug, error: "That connection attempt belongs to a different sign-in." };
   if (input.googleError || !input.code) {
     return { slug, error: input.googleError === "access_denied" ? "Google access was not granted, so nothing was connected." : "Google did not complete the connection." };

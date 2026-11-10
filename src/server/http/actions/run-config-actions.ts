@@ -6,7 +6,7 @@ import { PERIOD_MODES } from "@/domain/value-objects/period";
 import type { ActionState } from "@/types/action";
 import { container } from "../../composition-root/container";
 import { runAction } from "../action-result";
-import { requireOrg } from "../session";
+import { requireOrgFresh } from "../session";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Name must be 2 to 60 characters").max(60, "Name must be 2 to 60 characters"),
@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 export async function saveRunConfigAction(slug: string, runConfigId: string | null, _p: ActionState | null, form: FormData): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const parsed = schema.safeParse({
     name: form.get("name"), driveConnectionId: form.get("driveConnectionId"), driveFolder: form.get("driveFolder"),
     periodMode: form.get("periodMode"), sourceIds: form.getAll("sourceIds").map(String),
@@ -35,7 +35,7 @@ export async function saveRunConfigAction(slug: string, runConfigId: string | nu
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteRunConfigAction(slug: string, runConfigId: string, _prev: ActionState | null): Promise<ActionState> {
-  const { user, membership } = await requireOrg(slug);
+  const { user, membership } = await requireOrgFresh(slug);
   const result = await runAction(async () => {
     await container().deleteRunConfig.execute({ actorId: user.id, orgId: membership.orgId, runConfigId });
   });

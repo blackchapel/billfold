@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
+import { NavLink } from "./nav-link";
 import type { OrgSummaryDto, SessionUser } from "@/types/auth";
 
 const NAV = [
@@ -28,9 +29,9 @@ export function AppShell({ user, orgs, active, signOut, children }: Props) {
         <Link href={`/${active.slug}`} aria-label="Billfold home"><Logo /></Link>
         <nav aria-label="Main" className="mt-4 flex gap-1 overflow-x-auto md:flex-col">
           {NAV.map((item) => (
-            <Link key={item.href} href={`/${active.slug}${item.href}`} className="rounded-md px-3 py-2 text-sm whitespace-nowrap hover:bg-surface">{item.label}</Link>
+            <NavLink key={item.href} href={`/${active.slug}${item.href}`} label={item.label} />
           ))}
-          {user.isSuperAdmin && <Link href="/admin" className="rounded-md px-3 py-2 text-sm whitespace-nowrap hover:bg-surface">Platform admin</Link>}
+          {user.isSuperAdmin && <NavLink href="/admin" label="Platform admin" />}
         </nav>
         <div className="mt-6 hidden text-xs text-muted md:block">
           <p className="mb-1 uppercase tracking-wide">Organisations</p>
