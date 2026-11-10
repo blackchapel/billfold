@@ -220,10 +220,12 @@ test("F28 reports: month totals, a 12 month chart you can hover and read as a ta
   await expect(page.getByRole("tooltip")).toBeVisible();
   await page.getByText("Show as a table").click();
   await expect(page.getByRole("table", { name: "Total of bills per month" }).locator("tbody tr")).toHaveCount(12);
-  // Clicking a column opens that month.
-  await chart.getByRole("link").nth(11).click();
+  // Clicking a column opens that month. The chart ends at the chosen month, so the column before the last is the month before it.
+  const before = new Date(Date.UTC(lastMonth().getUTCFullYear(), lastMonth().getUTCMonth() - 1, 15));
+  await chart.getByRole("link").nth(10).click();
   await expect(page).toHaveURL(/period=\d{4}-\d{2}/);
-  await expect(page.getByText(`Total for ${monthName(istToday())}`)).toBeVisible();
+  await expect(page.getByText(`Total for ${monthName(before)}`)).toBeVisible();
+  await expect(page.getByRole("group", { name: "Total of bills per month, last 12 months" }).getByRole("link").last()).toHaveAttribute("aria-current", "true");
 });
 
 test("F29 viewers can read bills and reports and download the CSV, but not change anything", async ({ browser }) => {
