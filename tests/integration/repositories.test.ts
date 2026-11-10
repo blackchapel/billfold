@@ -9,6 +9,10 @@ import { OrgSecretBox } from "@/server/infra/crypto/org-secret-box";
 import { DrizzleAuditLogRepository } from "@/server/infra/repositories/audit-log-repository";
 import { DrizzleConnectionRepository } from "@/server/infra/repositories/connection-repository";
 import { DrizzleBillRepository } from "@/server/infra/repositories/bill-repository";
+import { DrizzleRecipientRepository } from "@/server/infra/repositories/recipient-repository";
+import { DrizzleSendItemRepository } from "@/server/infra/repositories/send-item-repository";
+import { DrizzleSendRepository } from "@/server/infra/repositories/send-repository";
+import { DrizzleTemplateRepository } from "@/server/infra/repositories/template-repository";
 import { DrizzleRunItemRepository } from "@/server/infra/repositories/run-item-repository";
 import { DrizzleRunRepository } from "@/server/infra/repositories/run-repository";
 import { DrizzleConnectionUsage } from "@/server/infra/repositories/connection-usage";
@@ -395,6 +399,136 @@ run("repositories (real Postgres)", () => {
       expect((await w.runs.find(w.a.id, w.run.id))?.driveConnectionId).toBeNull();
       expect((await w.bills.list(w.a.id, {}))[0]?.files[0]).toMatchObject({ driveConnectionId: null, driveAccount: "d@a.com", driveFileId: "drive-file-1" });
       expect(await w.items.list(w.a.id, w.run.id)).toHaveLength(1);
+    });
+  });
+
+  describe("recipients, templates and sends", () => {
+    async function world() {
+      const r = build();
+      const owner = await newUser(r, "o@example.com");
+      const a = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Alpha", defaultCurrency: "INR" });
+      const b = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Beta", defaultCurrency: "INR" });
+      const recipients = new DrizzleRecipientRepository(db);
+      const templates = new DrizzleTemplateRepository(db);
+      const sends = new DrizzleSendRepository(db);
+      const items = new DrizzleSendItemRepository(db);
+      const newSend = (over: Record<string, unknown> = {}) => ({
+        periodKey: "2026-10", templateName: "Standard summary", subject: "Bills", bodyHtml: "<p>x</p>", bodyText: "x", fromConnectionId: null, fromAccount: "me@a.com",
+        attachmentFileIds: ["f1", "f2"], attachmentBytes: 20, billCount: 2, totalMinor: 173450n, isTest: false, createdBy: owner.id, ...over,
+      });
+      const person = (n: number) => ({ recipientName: `P${n}`, recipientEmail: `p${n}@example.com` });
+      return { owner, a, b, recipients, templates, sends, items, newSend, person };
+    }
+
+    it("keeps recipients unique per org by address, ignoring case, and apart between orgs", async () => {
+      const w = await world();
+      const asha = await w.recipients.create(w.a.id, w.owner.id, { name: "Asha", email: "asha@example.com" });
+      await expect(w.recipients.create(w.a.id, w.owner.id, { name: "Dup", email: "ASHA@example.com" })).rejects.toThrow();
+      await w.recipients.create(w.b.id, w.owner.id, { name: "Asha", email: "asha@example.com" }); // another org may have the same person
+      expect((await w.recipients.findByEmail(w.a.id, "ASHA@EXAMPLE.COM"))?.id).toBe(asha.id);
+      expect(await w.recipients.find(w.b.id, asha.id)).toBeNull();
+      expect(await w.recipients.update(w.b.id, asha.id, { name: "X", email: "x@example.com" })).toBeNull();
+      expect(await w.recipients.findMany(w.b.id, [asha.id])).toEqual([]);
+      expect(await w.recipients.update(w.a.id, asha.id, { name: "Asha K", email: "asha@example.com" })).toMatchObject({ name: "Asha K" });
+      await w.recipients.remove(w.b.id, asha.id); // wrong org: no effect
+      expect(await w.recipients.list(w.a.id)).toHaveLength(1);
+      await w.recipients.remove(w.a.id, asha.id);
+      expect(await w.recipients.list(w.a.id)).toHaveLength(0);
+    });
+
+    it("keeps template names unique per org and at most one default", async () => {
+      const w = await world();
+      const f = (name: string) => ({ name, subject: "{{month}}", intro: "Hi", signoff: "Bye" });
+      const one = await w.templates.create(w.a.id, w.owner.id, f("Short"));
+      const two = await w.templates.create(w.a.id, w.owner.id, f("Long"));
+      await expect(w.templates.create(w.a.id, w.owner.id, f("SHORT"))).rejects.toThrow();
+      await w.templates.create(w.b.id, w.owner.id, f("Short"));
+      await w.templates.setDefault(w.a.id, one.id);
+      await w.templates.setDefault(w.a.id, two.id);
+      expect((await w.templates.list(w.a.id)).filter((t) => t.isDefault).map((t) => t.name)).toEqual(["Long"]);
+      await w.templates.setDefault(w.b.id, two.id); // another org's template id: changes nothing here
+      expect((await w.templates.list(w.a.id)).filter((t) => t.isDefault)).toHaveLength(1);
+      await w.templates.setDefault(w.a.id, null);
+      expect((await w.templates.list(w.a.id)).some((t) => t.isDefault)).toBe(false);
+      expect(await w.templates.findByName(w.a.id, "long")).toMatchObject({ name: "Long" });
+      expect(await w.templates.update(w.b.id, one.id, f("Z"))).toBeNull();
+    });
+
+    it("stores a send with its exact text, counts items, keeps orgs apart and counts recent sends per person", async () => {
+      const w = await world();
+      const s = await w.sends.create(w.a.id, w.newSend());
+      expect(s).toMatchObject({ status: "sending", totalMinor: 173450n, attachmentFileIds: ["f1", "f2"], bodyHtml: "<p>x</p>", finishedAt: null });
+      await w.items.insertMany(w.a.id, s.id, [w.person(1), w.person(2), { recipientName: "Again", recipientEmail: "P1@example.com" }]); // third is a duplicate address
+      expect(await w.items.list(w.a.id, s.id)).toHaveLength(2);
+      expect((await w.sends.counts(w.a.id, [s.id])).get(s.id)).toMatchObject({ pending: 2, sent: 0 });
+      expect(await w.sends.find(w.b.id, s.id)).toBeNull();
+      expect(await w.sends.list(w.b.id, 10)).toEqual([]);
+      expect((await w.sends.counts(w.b.id, [s.id])).get(s.id) ?? { pending: 0 }).toMatchObject({ pending: 0 });
+      await w.sends.setStatus(w.a.id, s.id, "sent", new Date());
+      expect(await w.sends.find(w.a.id, s.id)).toMatchObject({ status: "sent" });
+      expect(await w.sends.countSince(w.a.id, w.owner.id, new Date(Date.now() - 3_600_000))).toBe(1);
+      expect(await w.sends.countSince(w.a.id, w.owner.id, new Date(Date.now() + 60_000))).toBe(0);
+      expect(await w.sends.countSince(w.b.id, w.owner.id, new Date(0))).toBe(0);
+    });
+
+    it("hands each waiting email to exactly one of several simultaneous requests", async () => {
+      const w = await world();
+      const s = await w.sends.create(w.a.id, w.newSend());
+      await w.items.insertMany(w.a.id, s.id, [1, 2, 3, 4].map(w.person));
+      const stale = new Date(Date.now() - 300_000);
+      const claims = await Promise.all(Array.from({ length: 4 }, () => w.items.claimNext(w.a.id, s.id, stale)));
+      expect(new Set(claims.map((c) => c?.id)).size).toBe(4);
+      expect(claims.every((c) => c?.status === "processing" && c.attempts === 1)).toBe(true);
+      expect(await w.items.claimNext(w.a.id, s.id, stale)).toBeNull();
+      expect(await w.items.claimNext(w.b.id, s.id, new Date(0))).toBeNull();
+    });
+
+    it("marks sent and failed, retries failed ones under the cap, skips waiting ones, and takes back abandoned ones", async () => {
+      const w = await world();
+      const s = await w.sends.create(w.a.id, w.newSend());
+      await w.items.insertMany(w.a.id, s.id, [1, 2, 3, 4].map(w.person));
+      const stale = new Date(Date.now() - 300_000);
+      const one = await w.items.claimNext(w.a.id, s.id, stale);
+      const two = await w.items.claimNext(w.a.id, s.id, stale);
+      await w.items.markSent(w.a.id, one?.id ?? "", new Date());
+      await w.items.markFailed(w.a.id, two?.id ?? "", "The email could not be sent. Try again.");
+      expect(await w.items.find(w.a.id, one?.id ?? "")).toMatchObject({ status: "sent", error: null });
+      expect((await w.items.find(w.a.id, one?.id ?? ""))?.sentAt).toBeInstanceOf(Date);
+      expect(await w.items.find(w.b.id, one?.id ?? "")).toBeNull();
+      expect(await w.items.retryFailed(w.b.id, s.id, 5, null)).toBe(0);
+      expect(await w.items.retryFailed(w.a.id, s.id, 1, null)).toBe(0);
+      expect(await w.items.retryFailed(w.a.id, s.id, 3, two?.id ?? "")).toBe(1);
+      expect(await w.items.skipPending(w.a.id, s.id, "Cancelled")).toBe(3);
+      const t = await w.sends.create(w.a.id, w.newSend());
+      await w.items.insertMany(w.a.id, t.id, [w.person(9)]);
+      const first = await w.items.claimNext(w.a.id, t.id, stale);
+      expect(await w.items.claimNext(w.a.id, t.id, stale)).toBeNull();
+      expect(await w.items.claimNext(w.a.id, t.id, new Date(Date.now() + 1000))).toMatchObject({ id: first?.id, attempts: 2 });
+    });
+
+    it("removing a recipient or template leaves past sends intact, and removing a send removes its emails", async () => {
+      const w = await world();
+      const asha = await w.recipients.create(w.a.id, w.owner.id, { name: "Asha", email: "asha@example.com" });
+      const s = await w.sends.create(w.a.id, w.newSend());
+      await w.items.insertMany(w.a.id, s.id, [{ recipientName: "Asha", recipientEmail: "asha@example.com" }]);
+      await w.recipients.remove(w.a.id, asha.id);
+      expect(await w.items.list(w.a.id, s.id)).toHaveLength(1);
+      await db.execute(sql`delete from sends where id = ${s.id}`);
+      expect(await w.items.list(w.a.id, s.id)).toHaveLength(0);
+    });
+
+    it("finds only this org's Drive files when attaching", async () => {
+      const w = await world();
+      const bills = new DrizzleBillRepository(db);
+      const conns = new DrizzleConnectionRepository(db);
+      const drive = await conns.create({ orgId: w.a.id, kind: "google_drive", label: "d", accountEmail: "d@a.com", config: {}, secretCiphertext: "sealed", createdBy: w.owner.id });
+      const bill = await bills.record(w.a.id, {
+        periodKey: "2026-10", sourceId: null, sourceName: "Jio", billerName: "Jio", amountMinor: 1n, currency: "INR", billDate: null, dueDate: null,
+        confidence: "high", method: "text", needsReview: false, note: null, messageKey: "k", createdBy: w.owner.id,
+      }, { driveConnectionId: drive.id, driveAccount: "d@a.com", driveFileId: "df", driveFolderId: "fo", webViewLink: "https://x", name: "a.pdf", mimeType: "application/pdf", sizeBytes: 5, sha256: "ab".repeat(32) });
+      const id = bill.files[0]?.id ?? "";
+      expect((await bills.findFiles(w.a.id, [id])).map((f) => f.driveFileId)).toEqual(["df"]);
+      expect(await bills.findFiles(w.b.id, [id])).toEqual([]);
     });
   });
 

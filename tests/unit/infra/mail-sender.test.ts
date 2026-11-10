@@ -69,8 +69,8 @@ describe("SMTP sender against a local SMTP server", () => {
 });
 
 describe("Gmail sender (mocked HTTP)", () => {
+  it("posts the whole message, ready to deliver, as the connected account", async () => {
     const http = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => Response.json({ id: "sent-1" }));
-    const http = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ id: "sent-1" }));
     await new GmailSender(google, http as unknown as typeof fetch).send(email({ kind: "gmail", secretJson: JSON.stringify({ refreshToken: "rt-1" }) }));
     const [url, init] = http.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://gmail.googleapis.com/gmail/v1/users/me/messages/send");
