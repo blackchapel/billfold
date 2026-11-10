@@ -7,6 +7,7 @@ export interface GoogleProjects { drive: GoogleClientCredentials | null; gmail: 
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const TIMEOUT_MS = 10_000;
 
@@ -67,5 +68,15 @@ export class GoogleOAuth implements GoogleOAuthClient {
     const t = await this.token(kind, { grant_type: "refresh_token", refresh_token: refreshToken });
     if (!t.access_token) throw new Error("Google returned no access token");
     return t.access_token;
+  }
+
+  async revoke(_kind: GoogleKind, refreshToken: string) {
+    // No client credentials are needed to revoke; Google identifies the grant by the token itself.
+    await this.http(REVOKE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: refreshToken }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
   }
 }

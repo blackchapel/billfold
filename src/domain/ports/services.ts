@@ -36,6 +36,8 @@ export interface GoogleOAuthClient {
   authorizeUrl(kind: GoogleKind, state: string, redirectUri: string): string;
   exchangeCode(kind: GoogleKind, code: string, redirectUri: string): Promise<{ refreshToken: string; accountEmail: string }>;
   accessToken(kind: GoogleKind, refreshToken: string): Promise<string>;
+  /** Tells Google to forget the grant. Best effort: callers must not fail if this does. */
+  revoke(kind: GoogleKind, refreshToken: string): Promise<void>;
 }
 
 /** Signs short-lived values (OAuth state) so they cannot be forged or replayed after expiry. */

@@ -1,7 +1,7 @@
 import { ConnectionRowActions } from "@/components/features/connections/connection-row-actions";
 import { ConnectionList } from "@/components/features/connections/connection-list";
 import { MailAccountForm } from "@/components/features/connections/mail-account-form";
-import { addMailAccountAction, removeConnectionAction, testConnectionAction } from "@/server/http/actions/connection-actions";
+import { addMailAccountAction, removeConnectionAction, testConnectionAction, updateMailPasswordAction } from "@/server/http/actions/connection-actions";
 import { googleAvailability, listConnections } from "@/server/http/queries/connection-queries";
 import { requireOrg } from "@/server/http/session";
 
@@ -30,6 +30,8 @@ export default async function Connections({ params, searchParams }: {
         <h2 className="font-serif text-2xl">Linked accounts</h2>
         <ConnectionList items={items} actions={(c) => canManage && (
           <ConnectionRowActions label={c.label}
+            reconnectHref={c.kind === "google_drive" || c.kind === "gmail" ? start(c.kind) : undefined}
+            updatePassword={c.kind === "imap" || c.kind === "smtp" ? updateMailPasswordAction.bind(null, orgSlug, c.id) as never : undefined}
             test={testConnectionAction.bind(null, orgSlug, c.id) as never} remove={removeConnectionAction.bind(null, orgSlug, c.id) as never} />
         )} />
       </section>

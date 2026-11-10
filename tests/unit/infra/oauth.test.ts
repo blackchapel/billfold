@@ -55,9 +55,18 @@ describe("GoogleOAuth", () => {
   });
 });
 
+describe("GoogleOAuth.revoke", () => {
+  it("posts the token to Google's revoke endpoint", async () => {
+    const http = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    await new GoogleOAuth({ drive: null, gmail: null }, http as unknown as typeof fetch).revoke("gmail", "the-refresh-token");
+    expect(String(http.mock.calls[0]?.[0])).toBe("https://oauth2.googleapis.com/revoke");
+    expect(((http.mock.calls[0]?.[1] as RequestInit).body as URLSearchParams).get("token")).toBe("the-refresh-token");
+  });
+});
+
 describe("LiveConnectionProbe (Google)", () => {
   it("reports ok when the API answers and a friendly message when access was revoked", async () => {
-    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: vi.fn().mockResolvedValue("at") };
+    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: vi.fn().mockResolvedValue("at"), revoke: async () => undefined };
     const ok = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     expect(await new LiveConnectionProbe(google, ok as unknown as typeof fetch).check("gmail", {}, JSON.stringify({ refreshToken: "rt" }))).toMatchObject({ ok: true });
     google.accessToken.mockRejectedValueOnce(new Error("invalid_grant"));
@@ -65,7 +74,7 @@ describe("LiveConnectionProbe (Google)", () => {
     expect(revoked).toEqual({ ok: false, message: "Google access was revoked or expired. Reconnect this account." });
   });
   it("flags unreadable stored credentials", async () => {
-    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: async () => "" };
+    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: async () => "", revoke: async () => undefined };
     expect((await new LiveConnectionProbe(google).check("google_drive", {}, "not json")).ok).toBe(false);
   });
 });

@@ -19,6 +19,8 @@ export class Memory {
   connections = new Map<string, ConnectionRecord & { secret: string }>();
   probeResult: ProbeResult = { ok: true, message: "ok" };
   probed: { kind: string; secretJson: string }[] = [];
+  revoked: string[] = [];
+  revokeFails = false;
   googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
 
   allowlist: AllowlistRepository = {
@@ -87,6 +89,7 @@ export class Memory {
     authorizeUrl: (k, state) => `https://google.test/auth?k=${k}&state=${state}`,
     exchangeCode: async () => this.googleAccount,
     accessToken: async () => "access",
+    revoke: async (_k, token) => { if (this.revokeFails) throw new Error("offline"); this.revoked.push(token); },
   };
   clock: Clock = { now: () => this.now };
   codes: InviteCodeService = { generate: () => ({ code: "CODE12345678", hash: "h:CODE12345678" }), hash: (c) => `h:${c.toUpperCase()}` };

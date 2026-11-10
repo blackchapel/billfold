@@ -47,7 +47,20 @@ export async function testConnectionAction(slug: string, connectionId: string, _
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function removeConnectionAction(slug: string, connectionId: string, _prev: ActionState | null): Promise<ActionState> {
   const { user, membership } = await requireOrg(slug);
-  const result = await runAction(() => container().removeConnection.execute({ actorId: user.id, orgId: membership.orgId, connectionId }));
+  const result = await runAction(async () => {
+    await container().removeConnection.execute({ actorId: user.id, orgId: membership.orgId, connectionId });
+  });
+  revalidatePath(`/${slug}/connections`);
+  return result;
+}
+
+const passwordSchema = z.object({ password: z.string().min(1, "Enter the new app password").max(256) });
+
+export async function updateMailPasswordAction(slug: string, connectionId: string, _p: ActionState | null, form: FormData): Promise<ActionState> {
+  const { user, membership } = await requireOrg(slug);
+  const parsed = passwordSchema.safeParse({ password: form.get("password") });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the new app password", code: "validation" };
+  const result = await runAction(() => container().updateMailPassword.execute({ actorId: user.id, orgId: membership.orgId, connectionId, password: parsed.data.password }));
   revalidatePath(`/${slug}/connections`);
   return result;
 }
