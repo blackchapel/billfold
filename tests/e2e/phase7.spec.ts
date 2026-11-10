@@ -63,13 +63,16 @@ test("F37 the privacy policy and terms are public, complete and honest about Goo
 });
 
 test("F37b a crawler that runs no scripts and sends no cookies gets the whole policy, not a login page", async ({ request }) => {
+  const expected: Record<string, string[]> = {
+    "/privacy": ["Gmail, read-only", "Limited Use", "Upstash", "Last updated"],
+    "/terms": ["Terms of Service", "Please check the numbers", "Drive permission is broad"],
+  };
   for (const path of ["/privacy", "/terms"]) {
     const res = await request.get(path, { headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" }, maxRedirects: 0 });
     expect(res.status(), path).toBe(200);
     expect(res.headers()["content-type"]).toContain("text/html");
     const html = await res.text();
-    expect(html).toContain("Gmail, read-only");
-    expect(html).toContain("Limited Use");
+    for (const text of expected[path] ?? []) expect(html, `${path} should contain "${text}"`).toContain(text);
     expect(html).not.toMatch(/<meta[^>]+name="robots"[^>]+noindex/i);
   }
   const robots = await (await request.get("/robots.txt")).text();
