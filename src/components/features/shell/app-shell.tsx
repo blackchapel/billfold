@@ -65,6 +65,10 @@ export function AppShell({ user, orgs, active, signOut, children }: Props) {
           </form>
         </header>
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
+        <footer className="flex gap-4 border-t border-line px-4 py-4 text-xs text-muted md:px-8">
+          <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+          <Link href="/terms" className="underline underline-offset-4">Terms</Link>
+        </footer>
       </div>
     </div>
   );

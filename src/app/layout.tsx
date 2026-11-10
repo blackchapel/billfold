@@ -7,8 +7,12 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swa
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: { default: "Billfold", template: "%s · Billfold" },
   description: "Collect your recurring bills, file them neatly and send one clear summary.",
+  applicationName: "Billfold",
+  openGraph: { type: "website", siteName: "Billfold", title: "Billfold", description: "Every bill, filed and summarised." },
+  twitter: { card: "summary_large_image", title: "Billfold", description: "Every bill, filed and summarised." },
 };
 
 export const viewport: Viewport = { themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f6f3ec" }, { media: "(prefers-color-scheme: dark)", color: "#14130f" }] };
