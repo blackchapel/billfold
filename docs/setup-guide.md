@@ -162,6 +162,13 @@ Google's products. Billfold sends only the unlocked bill PDF, but bills are pers
    *I have checked this bill*. Use **Add a bill** for anything that never came by email. Mark bills paid so the due-date warnings stay accurate; **Download CSV** gives you the list for a spreadsheet.
 6. **Reports**: the total for a month, the last twelve months as a chart, a table by biller with the change since last month, and what is overdue or due this week. Overdue and due-soon lists only count bills that have a due date and are not marked paid.
 
+7. **Recipients**: add the people who should get the monthly summary (name and email address; each gets their own email). **Templates** (optional): the standard wording is built in; add your own subject, opening and closing text
+   using the listed `{{placeholders}}` and choose a default.
+8. **Send**: choose the month, the wording, the account to send **from** (a Gmail connection made through project B, which needs the `gmail.send` permission and is granted when you connect it, or an SMTP app-password account added under Connections as "Sending summaries (SMTP)"),
+   tick the recipients and press **Preview the email**. **Send me a test** sends only to you with `[Test]` in the subject: do this first with your real account. Then **Send to N people**; keep the page open until it says *Sent*. Bill PDFs are attached (up to 40 files / 18 MB in one email; above that none are attached and the preview says so).
+   Each person's delivery is shown separately, with **Try again** for any that failed. The **Sent emails** list keeps every email exactly as it went out. Members can read all of this; sending needs the `reports.send` permission (owners and admins have it; grant it to a member under Members).
+   Gmail connections already ask Google for the permission to send (project B's consent screen lists `gmail.send`, step 2b). If a send says it is not allowed, add that scope to the consent screen and press **Reconnect**.
+
 Things to know: a connection that a source or run configuration uses cannot be removed until those are changed or deleted. Mail read over IMAP is taken from the INBOX only.
 Gmail connections made while project B is in *Testing* mode expire after 7 days: the Overview page then shows "needs attention" and **Reconnect** on the Connections page fixes it.
 A daily check (second cron job in `vercel.json`) notices expiries by itself.
@@ -178,5 +185,7 @@ A daily check (second cron job in `vercel.json`) notices expiries by itself.
 | A run item failed with "Could not save the PDF to Google Drive" | Reconnect the Drive on the Connections page, then **Try again** |
 | Connection says "needs attention" | Press **Reconnect** (Google) or **Update app password** (mail). Gmail Testing-mode tokens last 7 days |
 | A source finds no emails | Use **Test against mailbox**: check the sender spelling, loosen subject/attachment rules, or the mail may not be in the INBOX (IMAP) |
+| Send says "The email could not be sent" | Check the sending account on the Connections page (**Test**), then **Try again**. If Gmail refuses, **Reconnect** it and check project B lists `gmail.send`. Gmail's own limit is about 500 emails a day |
+| Preview says no PDFs are attached | Too many or too large for one email (40 files / 18 MB); the bills still link to Drive. Send fewer months or untick "Attach the bill PDFs" |
 | Database errors on first load | Migrations not run (step 5) or `DATABASE_URL` is the direct string instead of the pooler |
 | Supabase project paused | Open it in Supabase and tap Restore; check the daily cron ran under Vercel > Cron Jobs |

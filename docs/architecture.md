@@ -47,7 +47,7 @@ sequenceDiagram
 ```
 Every request re-checks the allowlist (`isStillAllowed`), so removing someone takes effect at once.
 
-## Data model (Phase 1-5 tables)
+## Data model (Phase 1-6 tables)
 ```mermaid
 erDiagram
   users ||--o{ org_members : has
@@ -66,14 +66,18 @@ erDiagram
   orgs ||--o{ bills : "unique per email"
   bills ||--o{ bill_files : "Drive copy (ids, hash)"
   run_items }o--o| bills : "filed as"
+  orgs ||--o{ recipients : "who gets summaries"
+  orgs ||--o{ email_templates : "wording (one default)"
+  orgs ||--o{ sends : "one press of Send, finished text kept"
+  sends ||--o{ send_items : "one email per recipient"
+  connections ||--o{ sends : "sent from (set null on delete)"
   sources ||--o{ run_config_sources : "in"
   orgs }o--|| currencies : default
   platform_allowlist {
     text email
   }
 ```
-Later phases add bills, files, recipients, templates and sends
-(see the brief's data model; migrations are additive).
+Sent emails copy the recipient's name and address and the finished subject and body, so removing a recipient, template or connection never changes history.
 
 ## Multi-tenancy
 Every org-owned repository method takes an `orgId`; `AuthorizationService` resolves membership and permissions in one
@@ -100,3 +104,26 @@ sequenceDiagram
     S-->>B: item + counts
   end
 ```
+
+## Sending pipeline (Phase 6)
+```mermaid
+sequenceDiagram
+  participant B as Browser (send page)
+  participant S as Server actions
+  participant D as Google Drive
+  participant G as Gmail API / SMTP
+  B->>S: previewSend(month, template, attach)
+  S-->>B: subject, HTML (shown in a sandboxed iframe), attachments, warnings
+  B->>S: startSend(month, template, sender, recipients)
+  S->>S: compose again, store finished text, one pending item per recipient
+  S-->>B: send id (redirect to the progress page)
+  loop until no pending item
+    B->>S: processNextSendItem(send)
+    S->>S: claim one recipient (row lock)
+    S->>D: download the PDFs (size capped)
+    S->>G: one email to that recipient
+    S->>S: mark sent or failed (fixed message)
+    S-->>B: item + counts
+  end
+```
+`SendComposer` is the single place that builds the message, used by both the preview and the real send. `domain/value-objects/summary-email.ts` renders it (everything escaped); `email-template.ts` holds the allowed placeholders and limits.

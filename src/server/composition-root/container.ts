@@ -154,10 +154,12 @@ function build() {
 
 export type Container = ReturnType<typeof build>;
 
-let instance: Container | null = null;
+// Kept on globalThis so the pages, server actions and route handlers of one dev server share a single container (and, in test
+// mode, the same in-memory stand-ins) even though the bundler may load this module more than once.
+const holder = globalThis as typeof globalThis & { __billfoldContainer?: Container };
 
 /** The only place concrete implementations are wired to ports. */
 export function container(): Container {
-  if (!instance) instance = build();
-  return instance;
+  if (!holder.__billfoldContainer) holder.__billfoldContainer = build();
+  return holder.__billfoldContainer;
 }

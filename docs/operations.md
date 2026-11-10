@@ -14,3 +14,6 @@
 - **Runs.** A run page keeps calling the server until every item is filed. If someone closes the tab mid-run, items stay *Waiting* (or *Filing…* for up to 5 minutes if a request died) and the run
   carries on when the page is opened again. `maxDuration` is 60 s on the run pages; one item (download, unlock, read, upload) normally takes a few seconds.
 - **Bills and Drive.** The database stores Drive file ids, links and SHA-256 hashes, not the PDFs. If a Drive file is deleted by hand, the bill row stays and its link breaks.
+- **Sending.** The send page keeps calling the server until every recipient has been tried, one email per request (`maxDuration` 60 s). Closing the tab leaves the rest *Waiting* (or *Sending…* for up to 5 minutes if a request died); open the send again to carry on. Gmail allows roughly 500 emails a day per account (about 2000 for Workspace),
+  far more than a family needs. The mail server accepting a message does not prove it reached the inbox: bounces that arrive later are not visible to Billfold. A test send to yourself is the way to check a new account.
+- **Migration 0006** (recipients, templates, sends, send items) must be applied with the **Database migrate** workflow on develop, and on production when the phase is promoted.
