@@ -11,6 +11,9 @@ const schema = z.object({
   CRON_SECRET: z.string().min(16).optional(),
   // Google project A (verified: login + Drive) and project B (unverified: Gmail). Optional until the owner creates them.
   // Optional: without a key, bills are read by the built-in text reader and nothing leaves Billfold.
+  // Optional shared cache (Upstash Redis over HTTPS). Without both, nothing is cached and the app works exactly as before.
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(10).optional(),
   GEMINI_API_KEY: z.string().min(10).optional(),
   GEMINI_MODEL: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,60}$/i).optional(),
   GOOGLE_A_CLIENT_ID: z.string().min(1).optional(),

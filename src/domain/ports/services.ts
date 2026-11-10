@@ -36,7 +36,7 @@ export interface GoogleOAuthClient {
   /** False until the matching Google project's client id and secret are set in the environment. */
   isConfigured(kind: GoogleKind): boolean;
   authorizeUrl(kind: GoogleKind, state: string, redirectUri: string): string;
-  exchangeCode(kind: GoogleKind, code: string, redirectUri: string): Promise<{ refreshToken: string; accountEmail: string }>;
+  exchangeCode(kind: GoogleKind, code: string, redirectUri: string): Promise<{ refreshToken: string; accountEmail: string; /** What Google says it granted. */ scopes: string[] }>;
   accessToken(kind: GoogleKind, refreshToken: string): Promise<string>;
   /** Tells Google to forget the grant. Best effort: callers must not fail if this does. */
   revoke(kind: GoogleKind, refreshToken: string): Promise<void>;
@@ -118,10 +118,13 @@ export interface DriveUploadInput {
   fileName: string;
   bytes: Uint8Array;
   mimeType: string;
+  /** When a file with this name is already in the folder, save under "name (2)" instead of leaving two files with one name. */
+  avoidDuplicate?: boolean;
 }
 
 export interface DriveStore {
-  upload(input: DriveUploadInput): Promise<{ fileId: string; folderId: string; webViewLink: string }>;
+  /** `name` is the name the file ended up with (it differs from `fileName` when a duplicate was avoided). */
+  upload(input: DriveUploadInput): Promise<{ fileId: string; folderId: string; webViewLink: string; name: string }>;
   /** The bytes of a file Billfold put in Drive earlier. Refuses anything larger than `maxBytes`. */
   download(input: { secretJson: string; fileId: string; maxBytes: number }): Promise<Uint8Array>;
 }

@@ -37,6 +37,8 @@ export class Memory {
   revoked: string[] = [];
   revokeFails = false;
   googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
+  /** What the fake Google says it granted. */
+  googleScopes = ["openid", "email", "https://www.googleapis.com/auth/drive"];
 
   allowlist: AllowlistRepository = {
     isAllowed: async (e) => this.allowed.has(e),
@@ -89,7 +91,7 @@ export class Memory {
     find: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? this.publicView(c) : null; },
     findByAccount: async (o, k, e) => { const c = [...this.connections.values()].find((x) => x.orgId === o && x.kind === k && x.accountEmail === e); return c ? this.publicView(c) : null; },
     findSecret: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? c.secret : null; },
-    replaceSecret: async (o, id, secret) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; } },
+    replaceSecret: async (o, id, secret, config) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; if (config) c.config = config; } },
     recordCheck: async (o, id, r) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.status = r.status; c.lastError = r.error; c.lastCheckedAt = r.at; } },
     remove: async (o, id) => { const c = this.connections.get(id); if (c && c.orgId === o) this.connections.delete(id); },
   };
@@ -102,7 +104,7 @@ export class Memory {
   google: GoogleOAuthClient = {
     isConfigured: () => true,
     authorizeUrl: (k, state) => `https://google.test/auth?k=${k}&state=${state}`,
-    exchangeCode: async () => this.googleAccount,
+    exchangeCode: async () => ({ ...this.googleAccount, scopes: [...this.googleScopes] }),
     accessToken: async () => "access",
     revoke: async (_k, token) => { if (this.revokeFails) throw new Error("offline"); this.revoked.push(token); },
   };
@@ -300,7 +302,7 @@ export class Memory {
     upload: async (input) => {
       if (this.uploadFails) throw new Error("Drive request failed: 500 token=SECRET-TOKEN");
       this.uploads.push(input);
-      return { fileId: `file-${this.uploads.length}`, folderId: `folder-${input.folderPath.join("/")}`, webViewLink: `https://drive.test/${this.uploads.length}` };
+      return { fileId: `file-${this.uploads.length}`, folderId: `folder-${input.folderPath.join("/")}`, webViewLink: `https://drive.test/${this.uploads.length}`, name: input.fileName };
     },
   };
   clock: Clock = { now: () => this.now };

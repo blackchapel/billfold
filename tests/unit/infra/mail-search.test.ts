@@ -10,7 +10,7 @@ const since = new Date("2026-10-01T00:00:00Z");
 const before = new Date("2026-11-10T00:00:00Z");
 
 const google: GoogleOAuthClient = {
-  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }),
+  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }),
   accessToken: async (_k, rt) => `access-for-${rt}`, revoke: async () => undefined,
 };
 

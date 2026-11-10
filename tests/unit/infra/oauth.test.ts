@@ -29,7 +29,8 @@ describe("GoogleOAuth", () => {
     const url = new URL(new GoogleOAuth(projects).authorizeUrl("google_drive", "st", "https://app.test/cb"));
     expect(url.searchParams.get("client_id")).toBe("a-id");
     expect(url.searchParams.get("redirect_uri")).toBe("https://app.test/cb");
-    expect(url.searchParams.get("scope")).toContain("drive.file");
+    expect(url.searchParams.get("scope")).toContain("https://www.googleapis.com/auth/drive"); // full Drive access, so existing folders can be used
+    expect(url.searchParams.get("scope")).not.toContain("drive.file");
     expect(url.searchParams.get("scope")).not.toContain("gmail");
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("prompt")).toBe("consent");
@@ -42,10 +43,10 @@ describe("GoogleOAuth", () => {
   });
   it("exchanges a code for a refresh token and the account email", async () => {
     const http = vi.fn()
-      .mockResolvedValueOnce(Response.json({ access_token: "at", refresh_token: "rt" }))
+      .mockResolvedValueOnce(Response.json({ access_token: "at", refresh_token: "rt", scope: "openid https://www.googleapis.com/auth/drive email" }))
       .mockResolvedValueOnce(Response.json({ email: "Me@Example.com" }));
     const got = await new GoogleOAuth(projects, http as unknown as typeof fetch).exchangeCode("google_drive", "code", "https://app.test/cb");
-    expect(got).toEqual({ refreshToken: "rt", accountEmail: "me@example.com" });
+    expect(got).toEqual({ refreshToken: "rt", accountEmail: "me@example.com", scopes: ["openid", "https://www.googleapis.com/auth/drive", "email"] });
     const body = (http.mock.calls[0]?.[1] as RequestInit).body as URLSearchParams;
     expect(body.get("grant_type")).toBe("authorization_code");
   });
@@ -66,7 +67,7 @@ describe("GoogleOAuth.revoke", () => {
 
 describe("LiveConnectionProbe (Google)", () => {
   it("reports ok when the API answers and a friendly message when access was revoked", async () => {
-    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: vi.fn().mockResolvedValue("at"), revoke: async () => undefined };
+    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }), accessToken: vi.fn().mockResolvedValue("at"), revoke: async () => undefined };
     const ok = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     expect(await new LiveConnectionProbe(google, ok as unknown as typeof fetch).check("gmail", {}, JSON.stringify({ refreshToken: "rt" }))).toMatchObject({ ok: true });
     google.accessToken.mockRejectedValueOnce(new Error("invalid_grant"));
@@ -74,7 +75,7 @@ describe("LiveConnectionProbe (Google)", () => {
     expect(revoked).toEqual({ ok: false, message: "Google access was revoked or expired. Reconnect this account." });
   });
   it("flags unreadable stored credentials", async () => {
-    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }), accessToken: async () => "", revoke: async () => undefined };
+    const google = { isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }), accessToken: async () => "", revoke: async () => undefined };
     expect((await new LiveConnectionProbe(google).check("google_drive", {}, "not json")).ok).toBe(false);
   });
 });

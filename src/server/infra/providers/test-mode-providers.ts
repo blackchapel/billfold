@@ -1,4 +1,4 @@
-import type { ConnectionConfig, ConnectionKind, GoogleKind } from "@/domain/value-objects/connection";
+import { GOOGLE_SCOPES, type ConnectionConfig, type ConnectionKind, type GoogleKind } from "@/domain/value-objects/connection";
 import type { MessageSummary } from "@/domain/value-objects/source-rules";
 import type { ConnectionProbe, DriveStore, DriveUploadInput, MailSender, OutgoingEmail, FetchedMessage, GoogleOAuthClient, MailFetch, MailFetchInput, MailSearch, MailSearchInput, ProbeResult } from "@/domain/ports/services";
 import { withinWindow } from "./mail-search";
@@ -22,7 +22,7 @@ export class StubGoogleOAuth implements GoogleOAuthClient {
     return `${redirectUri}?code=test-${kind}&state=${encodeURIComponent(state)}`;
   }
   async exchangeCode(kind: GoogleKind) {
-    return { refreshToken: "test-refresh", accountEmail: `${kind === "gmail" ? "mailbox" : "drive"}@example.com` };
+    return { refreshToken: "test-refresh", accountEmail: `${kind === "gmail" ? "mailbox" : "drive"}@example.com`, scopes: [...GOOGLE_SCOPES[kind]] };
   }
   async accessToken() { return "test-access"; }
   async revoke(_kind: GoogleKind, refreshToken: string) { this.revoked.push(refreshToken); }
@@ -88,14 +88,19 @@ export class StubMailFetch implements MailFetch {
 /** Keeps "uploads" in memory and hands back believable ids and links. Never touches a real Drive. */
 export class StubDriveStore implements DriveStore {
   readonly uploads: { folderPath: string[]; fileName: string; size: number }[] = [];
+  private readonly names = new Set<string>();
   /** A small real PDF, so attachments in test mode are genuine files. */
   async download(input: { secretJson: string; fileId: string; maxBytes: number }) {
     return billPdf([`Stub copy of ${input.fileId}`, "Total amount due: Rs 1.00"]);
   }
   async upload(input: DriveUploadInput) {
-    this.uploads.push({ folderPath: input.folderPath, fileName: input.fileName, size: input.bytes.byteLength });
+    let name = input.fileName;
+    const taken = (n: string) => this.names.has(`${input.folderPath.join("/")}/${n}`);
+    for (let i = 2; input.avoidDuplicate && taken(name) && i < 50; i++) name = input.fileName.replace(/(\.[^.]*)?$/, ` (${i})$1`);
+    this.names.add(`${input.folderPath.join("/")}/${name}`);
+    this.uploads.push({ folderPath: input.folderPath, fileName: name, size: input.bytes.byteLength });
     const id = `test-file-${this.uploads.length}`;
-    return { fileId: id, folderId: `test-folder-${input.folderPath.join("-")}`, webViewLink: `https://drive.test/file/${id}` };
+    return { fileId: id, folderId: `test-folder-${input.folderPath.join("-")}`, webViewLink: `https://drive.test/file/${id}`, name };
   }
 }
 

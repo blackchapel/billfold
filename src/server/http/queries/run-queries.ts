@@ -9,6 +9,7 @@ import type { BillBriefDto, RunCountsDto, RunDetailDto, RunItemDto, RunSummaryDt
 import { StartRun } from "../../application/runs";
 import { container } from "../../composition-root/container";
 import { runConfigRecords } from "./request-memo";
+import { cachedRead } from "./cached";
 
 const summary = (run: RunRecord, counts: RunCountsDto): RunSummaryDto => ({
   id: run.id, configName: run.configName, periodKey: run.periodKey, status: run.status,
@@ -33,7 +34,7 @@ export function toItemDto(item: RunItemRecord, bill: BillRecord | null): RunItem
 }
 
 export async function listRuns(orgId: string, limit = 20): Promise<RunSummaryDto[]> {
-  return (await container().listRuns.recent(orgId, limit)).map(({ run, counts }) => summary(run, counts));
+  return (await cachedRead(orgId, "runs", ["runs"], limit, () => container().listRuns.recent(orgId, limit))).map(({ run, counts }) => summary(run, counts));
 }
 
 export async function getRun(orgId: string, runId: string): Promise<RunDetailDto | null> {

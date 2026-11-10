@@ -1,6 +1,6 @@
 import type { Role, PermissionOverrides } from "../policies/permissions";
 import type { RunStatus } from "../value-objects/bill-data";
-import type { ConnectionKind, ConnectionStatus } from "../value-objects/connection";
+import type { ConnectionConfig, ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 import type {
   AllowlistEntry,
   BillFilter,
@@ -102,7 +102,8 @@ export interface ConnectionRepository {
   /** The encrypted secret; only use cases that talk to the provider call this. */
   findSecret(orgId: string, id: string): Promise<string | null>;
   /** Stores a fresh secret (e.g. after reconnecting) and marks the connection healthy again. */
-  replaceSecret(orgId: string, id: string, secretCiphertext: string): Promise<void>;
+  /** Also replaces the non-secret settings when `config` is given (a reconnect records what Google granted this time). */
+  replaceSecret(orgId: string, id: string, secretCiphertext: string, config?: ConnectionConfig): Promise<void>;
   recordCheck(orgId: string, id: string, result: { status: ConnectionStatus; error: string | null; at: Date }): Promise<void>;
   remove(orgId: string, id: string): Promise<void>;
 }

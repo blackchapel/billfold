@@ -1,7 +1,7 @@
 import { and, asc, eq, getTableColumns } from "drizzle-orm";
 import type { ConnectionRepository } from "@/domain/ports/repositories";
 import type { ConnectionRecord, NewConnection } from "@/domain/ports/records";
-import type { ConnectionKind, ConnectionStatus } from "@/domain/value-objects/connection";
+import type { ConnectionConfig, ConnectionKind, ConnectionStatus } from "@/domain/value-objects/connection";
 import type { Db } from "../db/create";
 import { connections } from "../db/schema";
 
@@ -43,8 +43,8 @@ export class DrizzleConnectionRepository implements ConnectionRepository {
     return row?.s ?? null;
   }
 
-  async replaceSecret(orgId: string, id: string, secretCiphertext: string) {
-    await this.db.update(connections).set({ secretCiphertext, status: "active", lastError: null })
+  async replaceSecret(orgId: string, id: string, secretCiphertext: string, config?: ConnectionConfig) {
+    await this.db.update(connections).set({ secretCiphertext, status: "active", lastError: null, ...(config ? { config } : {}) })
       .where(and(eq(connections.orgId, orgId), eq(connections.id, id)));
   }
 

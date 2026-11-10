@@ -7,15 +7,16 @@ import type { ComposeOptions, PlaceholderDto, PreviewDto, RecipientDto, SendDeta
 import type { Composed } from "../../application/send-composer";
 import { MAX_SEND_ATTEMPTS } from "../../application/sends";
 import { container } from "../../composition-root/container";
-import { connectionRecords } from "./request-memo";
+import { billSummary, connectionRecords, recipientRecords, templateRecords } from "./request-memo";
+import { cachedRead } from "./cached";
 
 export async function listRecipientDtos(orgId: string): Promise<RecipientDto[]> {
-  return (await container().listRecipients.execute(orgId)).map((r) => ({ id: r.id, name: r.name, email: r.email }))
+  return (await recipientRecords(orgId)).map((r) => ({ id: r.id, name: r.name, email: r.email }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listTemplateDtos(orgId: string): Promise<TemplateDto[]> {
-  return (await container().listTemplates.execute(orgId)).map((t) => ({ id: t.id, name: t.name, subject: t.subject, intro: t.intro, signoff: t.signoff, isDefault: t.isDefault }))
+  return (await templateRecords(orgId)).map((t) => ({ id: t.id, name: t.name, subject: t.subject, intro: t.intro, signoff: t.signoff, isDefault: t.isDefault }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -26,9 +27,8 @@ export function placeholderHelp(): PlaceholderDto[] {
 export const builtInTemplate = (): Omit<TemplateDto, "id" | "isDefault"> => ({ ...BUILT_IN_TEMPLATE });
 
 export async function composeOptions(orgId: string): Promise<ComposeOptions> {
-  const c = container();
   const [summary, templates, recipients, connections] = await Promise.all([
-    c.listBills.summary(orgId), listTemplateDtos(orgId), listRecipientDtos(orgId), connectionRecords(orgId),
+    billSummary(orgId), listTemplateDtos(orgId), listRecipientDtos(orgId), connectionRecords(orgId),
   ]);
   return {
     periods: summary.months,
@@ -60,12 +60,12 @@ function summary(send: SendSummary, counts: SendCounts): SendSummaryDto {
 }
 
 export async function listSendSummaries(orgId: string): Promise<SendSummaryDto[]> {
-  return (await container().readSends.list(orgId)).map(({ send, counts }) => summary(send, counts));
+  return (await cachedRead(orgId, "sends", ["sends"], null, () => container().readSends.list(orgId))).map(({ send, counts }) => summary(send, counts));
 }
 
 /** Whether a real (not test) summary has ever been sent, for the Overview checklist. */
 export async function hasSentSummary(orgId: string): Promise<boolean> {
-  return (await container().readSends.recent(orgId)).some((s) => !s.isTest);
+  return (await cachedRead(orgId, "sendsRecent", ["sends"], null, () => container().readSends.recent(orgId))).some((s) => !s.isTest);
 }
 
 export async function getSendDetail(orgId: string, sendId: string): Promise<SendDetailDto | null> {
