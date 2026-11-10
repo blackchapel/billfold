@@ -201,9 +201,10 @@ test("F28 reports: month totals, a 12 month chart you can hover and read as a ta
   await expect(page).toHaveURL(/period=\d{4}-\d{2}/);
   await expect(page.getByText(`Total for ${monthName(lastMonth())}`)).toBeVisible();
   const table = page.getByRole("region", { name: "Bills by biller" });
-  await expect(table.getByRole("row", { name: /Jio/ })).toContainText("₹1,234.50");
-  await expect(table.getByRole("row", { name: /Power/ })).toContainText("₹2,310.00");
-  await expect(table.getByRole("row", { name: /Bank/ }).first()).toContainText("₹5,000.00");
+  // One row per biller (names compared exactly: "Jio" is not "Jio again"). Power has two bills, 2,310.00 + 99.00.
+  await expect(table.getByRole("row", { name: /^Jio 1 / })).toContainText("₹1,234.50");
+  await expect(table.getByRole("row", { name: /^Power 2 / })).toContainText("₹2,409.00");
+  await expect(table.getByRole("row", { name: /^Bank 1 / })).toContainText("₹5,000.00");
 
   // The chart: twelve columns, each a link; hover and keyboard focus show the same tooltip; the table holds every number.
   const chart = page.getByRole("group", { name: "Total of bills per month, last 12 months" });
