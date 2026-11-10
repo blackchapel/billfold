@@ -32,7 +32,7 @@ function DueList({ title, rows, orgSlug, empty }: { title: string; rows: DueRowD
 export default async function Reports({ params, searchParams }: { params: Promise<{ orgSlug: string }>; searchParams: Promise<{ period?: string }> }) {
   const { orgSlug } = await params;
   const { period } = await searchParams;
-  const { membership } = await requireOrg(orgSlug);
+  const { membership, permissions } = await requireOrg(orgSlug);
   const r = await getReport(membership.orgId, period ?? null);
   const empty = !r.hasBills;
 
@@ -46,6 +46,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
         </div>
         <button type="submit" className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-paper">Show</button>
       </form>
+      {!empty && permissions.includes("reports.send") && <p className="mt-3 text-sm"><Link href={`/${orgSlug}/send?period=${r.periodKey}`} className="underline underline-offset-4">Send {periodLabel(r.periodKey)} as an email summary</Link></p>}
 
       {empty ? (
         <p className="mt-8 rounded-md border border-dashed border-line p-6 text-sm text-muted">No bills yet, so there is nothing to report. Start a run on the <Link href={`/${orgSlug}/runs`} className="underline underline-offset-4">Runs</Link> page, or <Link href={`/${orgSlug}/bills/new`} className="underline underline-offset-4">add a bill by hand</Link>.</p>
