@@ -30,6 +30,9 @@ export interface OrgRepository {
   listForUser(userId: string): Promise<MembershipWithOrg[]>;
   findMembershipBySlug(userId: string, slug: string): Promise<MembershipWithOrg | null>;
   listAll(): Promise<OrgRecord[]>;
+  rename(orgId: string, name: string): Promise<void>;
+  /** Hides the org and destroys its encryption keys (crypto-shredding), so stored secrets can never be read again. */
+  softDeleteAndShred(orgId: string): Promise<void>;
 }
 
 export interface MemberRepository {

@@ -15,6 +15,7 @@ import { AuthorizationService } from "../application/authorization";
 import { CreateOrg } from "../application/create-org";
 import { AcceptInvite, CreateInvite, RevokeInvite } from "../application/invites";
 import { ChangeMemberRole, RemoveMember, SetMemberOverrides } from "../application/members";
+import { DeleteOrg, RenameOrg, TransferOwnership } from "../application/org-admin";
 import { SignInGate } from "../application/sign-in-gate";
 
 const systemClock = { now: () => new Date() };
@@ -37,6 +38,9 @@ function build() {
     authz,
     signInGate: new SignInGate(allowlist, users, superAdminEmails()),
     createOrg: new CreateOrg(orgs, users, audit),
+    renameOrg: new RenameOrg(orgs, authz, audit),
+    transferOwnership: new TransferOwnership(members, authz, audit),
+    deleteOrg: new DeleteOrg(orgs, authz, audit),
     createInvite: new CreateInvite(invites, authz, codes, systemClock, audit),
     revokeInvite: new RevokeInvite(invites, authz, audit),
     acceptInvite: new AcceptInvite(invites, members, orgs, users, codes, systemClock, limiter, audit),

@@ -92,6 +92,17 @@ run("repositories (real Postgres)", () => {
     expect(JSON.stringify(rows)).not.toContain(code);
   });
 
+  it("renames an org and, on delete, hides it and destroys its encryption key", async () => {
+    const r = build();
+    const owner = await newUser(r, "o@example.com");
+    const org = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Alpha", defaultCurrency: "INR" });
+    await r.orgs.rename(org.id, "Org Beta");
+    expect((await r.orgs.findMembershipBySlug(owner.id, org.slug))?.org.name).toBe("Org Beta");
+    await r.orgs.softDeleteAndShred(org.id);
+    expect(await r.orgs.findMembershipBySlug(owner.id, org.slug)).toBeNull();
+    expect(await db.select().from(orgKeys)).toHaveLength(0);
+  });
+
   it("rate limiter blocks after the limit within the window", async () => {
     const limiter = new PostgresRateLimiter(db);
     const results = [];

@@ -5,6 +5,7 @@ import { AuthorizationService } from "@/server/application/authorization";
 import { CreateOrg } from "@/server/application/create-org";
 import { AcceptInvite, CreateInvite } from "@/server/application/invites";
 import { ChangeMemberRole, RemoveMember } from "@/server/application/members";
+import { DeleteOrg, RenameOrg, TransferOwnership } from "@/server/application/org-admin";
 import { SignInGate } from "@/server/application/sign-in-gate";
 import { Memory } from "../../fakes/memory";
 
@@ -141,5 +142,38 @@ describe("allowlist management", () => {
     await uc.add({ actorId: "x", isSuperAdmin: true, email: " A@Example.com ", note: null });
     expect(m.allowed.has("a@example.com")).toBe(true);
     await expectCode(uc.add({ actorId: "x", isSuperAdmin: true, email: "nope", note: null }), "validation");
+  });
+});
+
+describe("org admin", () => {
+  async function setup() {
+    const owner = m.addUser("o@example.com");
+    const other = m.addUser("b@example.com");
+    const org = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Home", defaultCurrency: "INR" });
+    await m.memberRepo.add(org.id, other.id, "admin");
+    return { owner, other, org };
+  }
+  it("lets an admin rename but nobody outside the org", async () => {
+    const { other, org } = await setup();
+    await new RenameOrg(m.orgRepo, authz(), m.auditRepo).execute({ actorId: other.id, orgId: org.id, name: "  Family  " });
+    expect(m.orgs.get(org.id)?.name).toBe("Family");
+    const stranger = m.addUser("s@example.com");
+    await expectCode(new RenameOrg(m.orgRepo, authz(), m.auditRepo).execute({ actorId: stranger.id, orgId: org.id, name: "Mine" }), "not_found");
+  });
+  it("transfers ownership, demoting the old owner to admin", async () => {
+    const { owner, other, org } = await setup();
+    const uc = new TransferOwnership(m.memberRepo, authz(), m.auditRepo);
+    await expectCode(uc.execute({ actorId: other.id, orgId: org.id, newOwnerId: owner.id }), "forbidden");
+    await uc.execute({ actorId: owner.id, orgId: org.id, newOwnerId: other.id });
+    expect(m.members.find((x) => x.userId === other.id)?.role).toBe("owner");
+    expect(m.members.find((x) => x.userId === owner.id)?.role).toBe("admin");
+  });
+  it("deletes only for the owner and only with the exact address typed", async () => {
+    const { owner, other, org } = await setup();
+    const uc = new DeleteOrg(m.orgRepo, authz(), m.auditRepo);
+    await expectCode(uc.execute({ actorId: other.id, orgId: org.id, slug: org.slug, confirmSlug: org.slug }), "forbidden");
+    await expectCode(uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: "nope" }), "validation");
+    await uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: org.slug });
+    expect(m.orgs.has(org.id)).toBe(false);
   });
 });
