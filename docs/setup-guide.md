@@ -142,6 +142,18 @@ Tables are created by running the SQL files in `drizzle/`. From your phone, use 
 3. Open `/admin`, add the Google emails of anyone you want to let in (they must be on this list even with an invite code).
 4. In your org: **Invites** > create a code > send it to them. They sign in, then paste the code.
 
+## 6b. Set up your first bills (after sign-in)
+
+1. **Connections**: connect a mailbox (Gmail through Google, or any mailbox with an app password) and a **Google Drive**. Press **Test** on each.
+2. **Sources**: **New source** for each kind of bill. Pick the mailbox, list who sends it (an address like `billing@jio.com` or a whole domain like `jio.com`),
+   optionally a word the subject must contain, and say how the PDF is locked (not locked, one saved password, or the password written in the email subject
+   in brackets, as Jio does). Press **Test against mailbox**: it lists matching emails from the last 90 days with passwords hidden, and nothing is downloaded or saved.
+3. **Run configs**: **New run configuration**: tick the sources, choose the Drive and a folder name, and the default month. Running comes in the next phase.
+
+Things to know: a connection that a source or run configuration uses cannot be removed until those are changed or deleted. Mail read over IMAP is taken from the INBOX only.
+Gmail connections made while project B is in *Testing* mode expire after 7 days: the Overview page then shows "needs attention" and **Reconnect** on the Connections page fixes it.
+A daily check (second cron job in `vercel.json`) notices expiries by itself.
+
 ## 7. When something goes wrong
 
 | Symptom | Likely cause |
@@ -150,5 +162,7 @@ Tables are created by running the SQL files in `drizzle/`. From your phone, use 
 | Google says `redirect_uri_mismatch` | The redirect URI in step 2.3 is not exactly `…supabase.co/auth/v1/callback` |
 | After Google, you return to sign-in with an error | Supabase Redirect URLs (step 2.5) missing the exact `/auth/callback` address |
 | "not authorised" page | The email is not in `/admin` list and not in `SUPER_ADMIN_EMAILS` |
+| Connection says "needs attention" | Press **Reconnect** (Google) or **Update app password** (mail). Gmail Testing-mode tokens last 7 days |
+| A source finds no emails | Use **Test against mailbox**: check the sender spelling, loosen subject/attachment rules, or the mail may not be in the INBOX (IMAP) |
 | Database errors on first load | Migrations not run (step 5) or `DATABASE_URL` is the direct string instead of the pooler |
 | Supabase project paused | Open it in Supabase and tap Restore; check the daily cron ran under Vercel > Cron Jobs |

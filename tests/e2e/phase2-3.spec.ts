@@ -136,11 +136,12 @@ test("F14 run configurations need a Drive and sources, and protect what they use
   await signIn(page, "owner@example.com");
   await page.goto("/sharma-home/run-configs/new");
   await page.getByLabel("Name", { exact: true }).fill("Monthly household bills");
+  await page.getByLabel("File the PDFs in this Google Drive").selectOption({ label: "drive@example.com" });
   await page.getByRole("button", { name: "Save run configuration" }).click();
   await expect(page.getByText("Choose at least one source.")).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Monthly household bills"); // typed values survive an error
   await page.getByLabel("Jio mobile").check();
   await page.getByLabel("Bank statement").check();
-  await page.getByLabel("File the PDFs in this Google Drive").selectOption({ label: "drive@example.com" });
   await page.getByLabel("Drive folder name").fill("Family Bills");
   await page.getByLabel("This calendar month").check();
   await page.getByRole("button", { name: "Save run configuration" }).click();
