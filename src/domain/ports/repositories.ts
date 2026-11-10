@@ -1,16 +1,24 @@
 import type { Role, PermissionOverrides } from "../policies/permissions";
+import type { RunStatus } from "../value-objects/bill-data";
 import type { ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 import type {
   AllowlistEntry,
+  BillRecord,
   ConnectionRecord,
   InviteRecord,
   MemberRecord,
   MemberWithUser,
   MembershipWithOrg,
+  NewBill,
+  NewBillFile,
   NewConnection,
+  NewRunItem,
   OrgRecord,
   RunConfigFields,
   RunConfigRecord,
+  RunCounts,
+  RunItemRecord,
+  RunRecord,
   SourceFields,
   SourceRecord,
   UserRecord,
@@ -113,4 +121,37 @@ export interface RunConfigRepository {
 /** Which sources and run configs depend on a connection, so removing it cannot silently break them. */
 export interface ConnectionUsage {
   namesUsing(orgId: string, connectionId: string): Promise<string[]>;
+}
+
+export interface RunRepository {
+  create(orgId: string, run: { runConfigId: string; configName: string; periodKey: string; startedBy: string }): Promise<RunRecord>;
+  find(orgId: string, id: string): Promise<RunRecord | null>;
+  list(orgId: string, limit: number): Promise<RunRecord[]>;
+  setStatus(orgId: string, id: string, status: RunStatus, finishedAt: Date | null): Promise<void>;
+  counts(orgId: string, runIds: string[]): Promise<Map<string, RunCounts>>;
+}
+
+export interface RunItemRepository {
+  insertMany(orgId: string, runId: string, items: NewRunItem[]): Promise<void>;
+  list(orgId: string, runId: string): Promise<RunItemRecord[]>;
+  find(orgId: string, id: string): Promise<RunItemRecord | null>;
+  /**
+   * Atomically takes the next pending item (or one stuck in "processing" since before `staleBefore`) and marks it
+   * processing, so two requests can never work on the same item.
+   */
+  claimNext(orgId: string, runId: string, staleBefore: Date): Promise<RunItemRecord | null>;
+  markDone(orgId: string, id: string, billId: string): Promise<void>;
+  markFailed(orgId: string, id: string, error: string): Promise<void>;
+  /** Failed items with fewer than `maxAttempts` tries go back to pending. Returns how many. `itemId` limits it to one. */
+  retryFailed(orgId: string, runId: string, maxAttempts: number, itemId: string | null): Promise<number>;
+  /** Pending items become skipped (used when a run is cancelled). Returns how many. */
+  skipPending(orgId: string, runId: string, note: string): Promise<number>;
+}
+
+export interface BillRepository {
+  /** Which of these keys already have a bill, so earlier runs' emails are not filed again. */
+  existingKeys(orgId: string, keys: string[]): Promise<Set<string>>;
+  /** Saves the bill and its Drive file together. */
+  record(orgId: string, bill: NewBill, file: NewBillFile): Promise<BillRecord>;
+  list(orgId: string, periodKey: string | null): Promise<BillRecord[]>;
 }

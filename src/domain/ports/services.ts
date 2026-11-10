@@ -1,3 +1,4 @@
+import type { ExtractedBill } from "../value-objects/bill-data";
 import type { MessageSummary, SourceMatcher } from "../value-objects/source-rules";
 import type { ConnectionConfig, ConnectionKind, GoogleKind } from "../value-objects/connection";
 
@@ -61,4 +62,66 @@ export interface MailSearchInput {
 /** Looks in a mailbox for emails that could match a source. Callers still run `matchesMessage` on the results. */
 export interface MailSearch {
   search(input: MailSearchInput): Promise<MessageSummary[]>;
+}
+
+export interface MailFetchInput {
+  kind: "gmail" | "imap";
+  config: ConnectionConfig;
+  secretJson: string;
+  messageId: string;
+  /** The PDF to download, or null to read only the message itself (for bills that are the email body). */
+  attachmentName: string | null;
+}
+
+export interface FetchedMessage {
+  /** The real subject, which may contain a PDF password. Callers must mask it before storing or showing it. */
+  subject: string;
+  from: string;
+  date: Date;
+  attachment: { name: string; bytes: Uint8Array } | null;
+  bodyText: string;
+}
+
+/** Downloads one email and, if asked, one of its attachments. */
+export interface MailFetch {
+  fetch(input: MailFetchInput): Promise<FetchedMessage>;
+}
+
+export type UnlockResult =
+  | { status: "open"; bytes: Uint8Array; wasLocked: boolean }
+  | { status: "needs_password" }
+  | { status: "wrong_password" }
+  | { status: "unreadable" };
+
+export interface PdfTools {
+  /** Opens a PDF. Locked files are decrypted with `password`; unlocked files come back untouched. */
+  unlock(bytes: Uint8Array, password: string | null): Promise<UnlockResult>;
+  /** A simple text-only PDF, for bills that arrive as the email body. */
+  textToPdf(input: { title: string; lines: string[] }): Promise<Uint8Array>;
+  extractText(bytes: Uint8Array): Promise<string>;
+}
+
+export interface BillExtractorInput {
+  pdfBytes: Uint8Array;
+  text: string;
+  hints: { sourceName: string; periodKey: string; currencyCode: string };
+  /** The org's preferred Gemini model, if it set one. */
+  model: string | null;
+}
+
+export interface BillExtractor {
+  extract(input: BillExtractorInput): Promise<ExtractedBill>;
+}
+
+export interface DriveUploadInput {
+  secretJson: string;
+  /** Folder names from the top, e.g. ["Billfold", "2026-11", "Jio"]. Missing folders are created. */
+  folderPath: string[];
+  fileName: string;
+  bytes: Uint8Array;
+  mimeType: string;
+}
+
+export interface DriveStore {
+  upload(input: DriveUploadInput): Promise<{ fileId: string; folderId: string; webViewLink: string }>;
 }

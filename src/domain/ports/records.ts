@@ -1,4 +1,5 @@
 import type { PermissionOverrides, Role } from "../policies/permissions";
+import type { Confidence, RunItemStatus, RunStatus } from "../value-objects/bill-data";
 import type { PasswordMode } from "../value-objects/password-rule";
 import type { PeriodMode } from "../value-objects/period";
 import type { SourceMatcher } from "../value-objects/source-rules";
@@ -116,4 +117,90 @@ export interface RunConfigFields {
   driveFolder: string;
   periodMode: PeriodMode;
   sourceIds: string[];
+}
+
+export interface RunRecord {
+  id: string;
+  orgId: string;
+  runConfigId: string | null;
+  configName: string;
+  periodKey: string;
+  status: RunStatus;
+  startedBy: string;
+  createdAt: Date;
+  finishedAt: Date | null;
+}
+
+export interface RunCounts { pending: number; processing: number; done: number; failed: number; skipped: number }
+
+/** One email (or one PDF in it) a run has to file. The subject is stored with any password already masked. */
+export interface RunItemRecord {
+  id: string;
+  runId: string;
+  orgId: string;
+  sourceId: string | null;
+  sourceName: string;
+  messageId: string;
+  messageDate: Date;
+  fromAddress: string;
+  subject: string;
+  attachmentName: string | null;
+  status: RunItemStatus;
+  error: string | null;
+  attempts: number;
+  billId: string | null;
+}
+
+export interface NewRunItem {
+  sourceId: string;
+  sourceName: string;
+  messageId: string;
+  messageDate: Date;
+  fromAddress: string;
+  subject: string;
+  attachmentName: string | null;
+  /** Identifies the email+attachment inside a source, so the same one is never filed twice. */
+  itemKey: string;
+  status: Extract<RunItemStatus, "pending" | "skipped" | "failed">;
+  error: string | null;
+}
+
+export interface NewBill {
+  periodKey: string;
+  sourceId: string;
+  sourceName: string;
+  billerName: string;
+  amountMinor: bigint | null;
+  currency: string;
+  billDate: string | null;
+  dueDate: string | null;
+  confidence: Confidence;
+  method: "text" | "gemini";
+  needsReview: boolean;
+  note: string | null;
+  messageKey: string;
+  createdBy: string;
+}
+
+export interface NewBillFile {
+  driveConnectionId: string;
+  driveAccount: string;
+  driveFileId: string;
+  driveFolderId: string;
+  webViewLink: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+/** Drive connection and source can disappear later (set null); the account and source names stay on the record. */
+export type BillFileRecord = Omit<NewBillFile, "driveConnectionId"> & { id: string; driveConnectionId: string | null };
+
+export interface BillRecord extends Omit<NewBill, "createdBy" | "sourceId"> {
+  id: string;
+  orgId: string;
+  sourceId: string | null;
+  createdAt: Date;
+  files: BillFileRecord[];
 }
