@@ -5,6 +5,8 @@ import { AuthorizationService } from "@/server/application/authorization";
 import { CreateOrg } from "@/server/application/create-org";
 import { AcceptInvite, CreateInvite } from "@/server/application/invites";
 import { ChangeMemberRole, RemoveMember } from "@/server/application/members";
+import { AddMailAccount, ListConnections, RemoveConnection, TestConnection } from "@/server/application/connections";
+import { CompleteGoogleConnect } from "@/server/application/google-connect";
 import { DeleteOrg, RenameOrg, TransferOwnership } from "@/server/application/org-admin";
 import { SignInGate } from "@/server/application/sign-in-gate";
 import { Memory } from "../../fakes/memory";
@@ -175,5 +177,82 @@ describe("org admin", () => {
     await expectCode(uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: "nope" }), "validation");
     await uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: org.slug });
     expect(m.orgs.has(org.id)).toBe(false);
+  });
+});
+
+describe("connections", () => {
+  const mail = (actorId: string, orgId: string, over: Partial<Parameters<AddMailAccount["execute"]>[0]> = {}) => ({
+    actorId, orgId, kind: "imap" as const, label: "", host: "IMAP.Example.com", port: 993, secure: true, username: "Bills@Example.com", password: "app-password-1", ...over,
+  });
+  async function setup() {
+    const owner = m.addUser("o@example.com");
+    const viewer = m.addUser("v@example.com");
+    const org = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Home", defaultCurrency: "INR" });
+    await m.memberRepo.add(org.id, viewer.id, "viewer");
+    const add = new AddMailAccount(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock, m.auditRepo);
+    return { owner, viewer, org, add };
+  }
+
+  it("tests the login first, then stores the password encrypted and never in plaintext", async () => {
+    const { owner, org, add } = await setup();
+    const c = await add.execute(mail(owner.id, org.id));
+    expect(c).toMatchObject({ kind: "imap", accountEmail: "bills@example.com", label: "bills@example.com", config: { host: "imap.example.com", port: 993 } });
+    const stored = m.connections.get(c.id)?.secret ?? "";
+    expect(stored).not.toContain("app-password-1");
+    expect(await m.secretBox.decrypt(org.id, stored)).toContain("app-password-1");
+    expect(JSON.stringify(m.audit)).not.toContain("app-password-1");
+    expect(m.connections.get(c.id)?.status).toBe("active");
+  });
+  it("refuses to save a login that does not work and shows the probe's safe message", async () => {
+    const { owner, org, add } = await setup();
+    m.probeResult = { ok: false, message: "The server rejected the username or app password." };
+    await expect(add.execute(mail(owner.id, org.id))).rejects.toThrow("rejected the username");
+    expect(m.connections.size).toBe(0);
+  });
+  it("only people with connections.manage may add, test or remove; non-members see not_found", async () => {
+    const { owner, viewer, org, add } = await setup();
+    await expectCode(add.execute(mail(viewer.id, org.id)), "forbidden");
+    const stranger = m.addUser("s@example.com");
+    await expectCode(add.execute(mail(stranger.id, org.id)), "not_found");
+    const c = await add.execute(mail(owner.id, org.id));
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
+    await expectCode(new TestConnection(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
+  });
+  it("rejects a duplicate account", async () => {
+    const { owner, org, add } = await setup();
+    await add.execute(mail(owner.id, org.id));
+    await expectCode(add.execute(mail(owner.id, org.id)), "conflict");
+  });
+  it("marks a connection as needing attention when a re-test fails, and healthy again when it passes", async () => {
+    const { owner, org, add } = await setup();
+    const c = await add.execute(mail(owner.id, org.id));
+    const test = new TestConnection(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock);
+    m.probeResult = { ok: false, message: "The server rejected the username or app password." };
+    await test.execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.get(c.id)).toMatchObject({ status: "needs_attention", lastError: "The server rejected the username or app password." });
+    m.probeResult = { ok: true, message: "ok" };
+    await test.execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.get(c.id)).toMatchObject({ status: "active", lastError: null });
+    expect(m.probed.at(-1)?.secretJson).toContain("app-password-1"); // the probe got the decrypted secret
+  });
+  it("lists and removes within the org only", async () => {
+    const { owner, org, add } = await setup();
+    const other = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Work", defaultCurrency: "INR" });
+    const c = await add.execute(mail(owner.id, org.id));
+    expect(await new ListConnections(m.connectionRepo).execute(other.id)).toEqual([]);
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo).execute({ actorId: owner.id, orgId: other.id, connectionId: c.id }), "not_found");
+    await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo).execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.size).toBe(0);
+  });
+  it("stores a Google refresh token sealed, and reconnecting replaces it instead of duplicating", async () => {
+    const { owner, org } = await setup();
+    const uc = new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo);
+    const first = await uc.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c1", redirectUri: "https://app/cb" });
+    expect(first).toMatchObject({ kind: "google_drive", accountEmail: "drive@example.com" });
+    expect(m.connections.get(first.id)?.secret).not.toContain("refresh-1");
+    m.googleAccount = { refreshToken: "refresh-2", accountEmail: "drive@example.com" };
+    await uc.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c2", redirectUri: "https://app/cb" });
+    expect(m.connections.size).toBe(1);
+    expect(await m.secretBox.decrypt(org.id, m.connections.get(first.id)?.secret ?? "")).toContain("refresh-2");
   });
 });

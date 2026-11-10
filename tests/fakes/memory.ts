@@ -3,7 +3,9 @@ import type { PermissionOverrides, Role } from "@/domain/policies/permissions";
 import type { AuditEntry } from "@/domain/ports/repositories";
 import type { AllowlistRepository, AuditLogRepository, InviteRepository, MemberRepository, OrgRepository, UserRepository } from "@/domain/ports/repositories";
 import type { InviteRecord, MemberRecord, MembershipWithOrg, OrgRecord, UserRecord } from "@/domain/ports/records";
-import type { Clock, InviteCodeService, RateLimiter } from "@/domain/ports/services";
+import type { Clock, ConnectionProbe, GoogleOAuthClient, InviteCodeService, ProbeResult, RateLimiter, SecretBox } from "@/domain/ports/services";
+import type { ConnectionRepository } from "@/domain/ports/repositories";
+import type { ConnectionRecord } from "@/domain/ports/records";
 
 export class Memory {
   allowed = new Set<string>();
@@ -14,6 +16,10 @@ export class Memory {
   audit: AuditEntry[] = [];
   now = new Date("2026-11-01T00:00:00Z");
   limitAllows = true;
+  connections = new Map<string, ConnectionRecord & { secret: string }>();
+  probeResult: ProbeResult = { ok: true, message: "ok" };
+  probed: { kind: string; secretJson: string }[] = [];
+  googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
 
   allowlist: AllowlistRepository = {
     isAllowed: async (e) => this.allowed.has(e),
@@ -55,6 +61,32 @@ export class Memory {
   auditRepo: AuditLogRepository = {
     record: async (e) => void this.audit.push(e),
     list: async () => [],
+  };
+  connectionRepo: ConnectionRepository = {
+    create: async (c) => {
+      const r: ConnectionRecord = { id: randomUUID(), orgId: c.orgId, kind: c.kind, label: c.label, accountEmail: c.accountEmail, config: c.config, status: "active", lastCheckedAt: null, lastError: null, createdAt: this.now };
+      this.connections.set(r.id, { ...r, secret: c.secretCiphertext });
+      return r;
+    },
+    list: async (o) => [...this.connections.values()].filter((c) => c.orgId === o).map((c) => this.publicView(c)),
+    find: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? this.publicView(c) : null; },
+    findByAccount: async (o, k, e) => { const c = [...this.connections.values()].find((x) => x.orgId === o && x.kind === k && x.accountEmail === e); return c ? this.publicView(c) : null; },
+    findSecret: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? c.secret : null; },
+    replaceSecret: async (o, id, secret) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; } },
+    recordCheck: async (o, id, r) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.status = r.status; c.lastError = r.error; c.lastCheckedAt = r.at; } },
+    remove: async (o, id) => { const c = this.connections.get(id); if (c && c.orgId === o) this.connections.delete(id); },
+  };
+  private publicView(c: ConnectionRecord & { secret: string }): ConnectionRecord {
+    return { id: c.id, orgId: c.orgId, kind: c.kind, label: c.label, accountEmail: c.accountEmail, config: c.config, status: c.status, lastCheckedAt: c.lastCheckedAt, lastError: c.lastError, createdAt: c.createdAt };
+  }
+  /** Reversible stand-in for encryption that is still obviously not plaintext. */
+  secretBox: SecretBox = { encrypt: async (o, t) => `enc:${o}:${Buffer.from(t).toString("base64")}`, decrypt: async (_o, c) => Buffer.from(c.split(":")[2] ?? "", "base64").toString() };
+  probe: ConnectionProbe = { check: async (kind, _config, secretJson) => { this.probed.push({ kind, secretJson }); return this.probeResult; } };
+  google: GoogleOAuthClient = {
+    isConfigured: () => true,
+    authorizeUrl: (k, state) => `https://google.test/auth?k=${k}&state=${state}`,
+    exchangeCode: async () => this.googleAccount,
+    accessToken: async () => "access",
   };
   clock: Clock = { now: () => this.now };
   codes: InviteCodeService = { generate: () => ({ code: "CODE12345678", hash: "h:CODE12345678" }), hash: (c) => `h:${c.toUpperCase()}` };

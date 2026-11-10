@@ -5,6 +5,7 @@ import type { OrgSummaryDto, SessionUser } from "@/types/auth";
 const NAV = [
   { href: "", label: "Overview" },
   { href: "/members", label: "Members" },
+  { href: "/connections", label: "Connections" },
   { href: "/invites", label: "Invites" },
   { href: "/audit", label: "Audit log" },
   { href: "/settings", label: "Settings" },

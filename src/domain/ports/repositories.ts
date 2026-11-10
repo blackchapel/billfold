@@ -1,10 +1,13 @@
 import type { Role, PermissionOverrides } from "../policies/permissions";
+import type { ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 import type {
   AllowlistEntry,
+  ConnectionRecord,
   InviteRecord,
   MemberRecord,
   MemberWithUser,
   MembershipWithOrg,
+  NewConnection,
   OrgRecord,
   UserRecord,
 } from "./records";
@@ -66,4 +69,17 @@ export interface AuditEntry {
 export interface AuditLogRepository {
   record(entry: AuditEntry): Promise<void>;
   list(orgId: string, limit: number): Promise<(AuditEntry & { id: string; createdAt: Date })[]>;
+}
+
+export interface ConnectionRepository {
+  create(connection: NewConnection): Promise<ConnectionRecord>;
+  list(orgId: string): Promise<ConnectionRecord[]>;
+  find(orgId: string, id: string): Promise<ConnectionRecord | null>;
+  findByAccount(orgId: string, kind: ConnectionKind, accountEmail: string): Promise<ConnectionRecord | null>;
+  /** The encrypted secret; only use cases that talk to the provider call this. */
+  findSecret(orgId: string, id: string): Promise<string | null>;
+  /** Stores a fresh secret (e.g. after reconnecting) and marks the connection healthy again. */
+  replaceSecret(orgId: string, id: string, secretCiphertext: string): Promise<void>;
+  recordCheck(orgId: string, id: string, result: { status: ConnectionStatus; error: string | null; at: Date }): Promise<void>;
+  remove(orgId: string, id: string): Promise<void>;
 }

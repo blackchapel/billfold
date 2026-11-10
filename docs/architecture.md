@@ -47,7 +47,7 @@ sequenceDiagram
 ```
 Every request re-checks the allowlist (`isStillAllowed`), so removing someone takes effect at once.
 
-## Data model (Phase 1 tables)
+## Data model (Phase 1-2 tables)
 ```mermaid
 erDiagram
   users ||--o{ org_members : has
@@ -55,12 +55,13 @@ erDiagram
   orgs ||--o{ org_keys : "wrapped data key"
   orgs ||--o{ org_invites : has
   orgs ||--o{ audit_logs : has
+  orgs ||--o{ connections : "linked accounts (secret sealed)"
   orgs }o--|| currencies : default
   platform_allowlist {
     text email
   }
 ```
-Later phases add connections, sources, run configs, runs, reports, bills, files, recipients, templates and sends
+Later phases add sources, run configs, runs, reports, bills, files, recipients, templates and sends
 (see the brief's data model; migrations are additive).
 
 ## Multi-tenancy

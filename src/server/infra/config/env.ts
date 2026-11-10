@@ -9,6 +9,11 @@ const schema = z.object({
   SUPER_ADMIN_EMAILS: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().url(),
   CRON_SECRET: z.string().min(16).optional(),
+  // Google project A (verified: login + Drive) and project B (unverified: Gmail). Optional until the owner creates them.
+  GOOGLE_A_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_A_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_B_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_B_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -29,4 +34,10 @@ export function env(): Env {
 
 export function superAdminEmails(): string[] {
   return env().SUPER_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+}
+
+export function googleProjects(): { drive: { clientId: string; clientSecret: string } | null; gmail: { clientId: string; clientSecret: string } | null } {
+  const e = env();
+  const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null);
+  return { drive: pair(e.GOOGLE_A_CLIENT_ID, e.GOOGLE_A_CLIENT_SECRET), gmail: pair(e.GOOGLE_B_CLIENT_ID, e.GOOGLE_B_CLIENT_SECRET) };
 }
