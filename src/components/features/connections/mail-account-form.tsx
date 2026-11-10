@@ -51,7 +51,7 @@ export function MailAccountForm({ action }: { action: A }) {
         <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" name="secure" checked={secure} onChange={(e) => setSecure(e.target.checked)} /> Use SSL/TLS directly</label>
       </div>
       <Field name="username" label="Email address (username)" type="email" required autoComplete="off" autoCapitalize="none" />
-      <Field name="password" label="App password" type="password" required autoComplete="new-password"
+      <Field name="password" id="add-mail-password" label="App password" type="password" required autoComplete="new-password"
         hint="Use an app password, not your normal password. Billfold tests the login before saving it and keeps it encrypted." />
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>{pending ? "Testing login…" : "Test and save"}</Button>
