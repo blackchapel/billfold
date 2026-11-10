@@ -29,10 +29,10 @@ Every push to `develop` redeploys the preview. Merging `develop` into `main` red
    - **Project URL** → this is `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → this is `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe to expose; the database denies it everything)
 4. Tap **Connect** (top bar) or **Project Settings > Database > Connection string**:
-   - **Transaction pooler** string (port **6543**) → this is `DATABASE_URL` for Vercel. Replace `[YOUR-PASSWORD]` with your DB password.
-   - **Session pooler** string (port **5432**, host `…pooler.supabase.com`, username `postgres.<project-ref>`) → used only for
-     migrations (step 5). Do **not** use the "Direct connection" string: it is IPv6-only on the free plan and GitHub's runners
-     cannot reach it. If your password has special characters (`@ : / # ? %`), URL-encode them or reset the password to letters and numbers.
+   - **Session pooler** string (port **5432**, host `…pooler.supabase.com`, username `postgres.<project-ref>`) → this is `DATABASE_URL` for Vercel
+     **and** the GitHub migrate secrets. Do not use the Transaction pooler (6543) on Vercel: it hung and returned instant statement timeouts
+     on reused serverless instances (see Gotchas in CLAUDE.md). Replace `[YOUR-PASSWORD]` with your DB password.
+   - Do **not** use the "Direct connection" string: it is IPv6-only on the free plan, so neither Vercel nor GitHub's runners can reach it. If your password has special characters (`@ : / # ? %`), URL-encode them or reset the password to letters and numbers.
 5. Free projects pause after about a week of no activity. Billfold includes a daily keep-alive (`vercel.json`) that prevents this.
 
 Optional but recommended: make a **second** Supabase project (`billfold-dev`) for `develop` so test data never mixes with
@@ -84,7 +84,7 @@ unrecoverable.** Use a *different* `MASTER_ENCRYPTION_KEY` for develop and produ
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | production Supabase URL | develop Supabase URL (or same) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | production anon key | develop anon key |
-| `DATABASE_URL` | production **pooler** string (6543) | develop pooler string |
+| `DATABASE_URL` | production **Session pooler** string (5432) | develop Session pooler string (5432) |
 | `MASTER_ENCRYPTION_KEY` | key #1 | a different key #2 |
 | `SUPER_ADMIN_EMAILS` | your Gmail | your Gmail |
 | `NEXT_PUBLIC_APP_URL` | `https://YOUR-PRODUCTION-DOMAIN` | `https://billfold-git-develop-YOUR-VERCEL-TEAM.vercel.app` |

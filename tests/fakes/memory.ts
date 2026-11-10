@@ -33,6 +33,8 @@ export class Memory {
     listForUser: async (uid) => this.members.filter((m) => m.userId === uid).map((m) => ({ ...m, org: this.orgs.get(m.orgId)! }) as MembershipWithOrg),
     findMembershipBySlug: async (uid, slug) => (await this.orgRepo.listForUser(uid)).find((m) => m.org.slug === slug) ?? null,
     listAll: async () => [...this.orgs.values()],
+    rename: async (id, name) => { const o = this.orgs.get(id); if (o) o.name = name; },
+    softDeleteAndShred: async (id) => { this.orgs.delete(id); this.members = this.members.filter((m) => m.orgId !== id); },
   };
   memberRepo: MemberRepository = {
     find: async (o, u) => this.members.find((m) => m.orgId === o && m.userId === u) ?? null,

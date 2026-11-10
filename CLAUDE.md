@@ -86,12 +86,16 @@ Later: Google project A/B client IDs+secrets, `GEMINI_API_KEY`.
 - Phase 0 platform spikes (PDF decrypt, email→PDF, IMAP/SMTP on Vercel, current free-tier limits, Gemini terms) are **deferred** to the
   phase that needs them (ADR 0005).
 - Not yet built: connections (P2), sources/run configs (P3), pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
-- Known gaps: real Google sign-in not exercised end-to-end (needs owner's Supabase/Google setup); org rename/transfer/delete UI pending;
+- Phase 1 leftovers done: real Google sign-in works on billfold-dev; org rename / transfer ownership / delete (soft delete + key shredding) in Settings.
+- Known gaps:
   brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet.
 
 ## Gotchas
 - Next 16: middleware is `src/proxy.ts`. ESLint uses native flat config from `eslint-config-next`.
-- Supabase pooler (transaction mode) needs `prepare: false`; use the Session pooler string (port 5432) for migrations; the direct host is IPv6-only and unreachable from GitHub runners.
+- **`DATABASE_URL` must be the Supabase Session pooler string (port 5432), in Vercel production, preview and GitHub secrets.** The Transaction pooler (6543)
+  worked on a fresh serverless instance but then hung (`GET /` hit the 300s limit) or returned an instant `57014 statement timeout` on reused instances;
+  switching to 5432 fixed it (proved on billfold-dev). The direct host is IPv6-only and unreachable from Vercel and GitHub runners. `create.ts` keeps `prepare: false` and short idle/lifetime timeouts.
+- Sign-in failures log `auth_callback_failed` with `step` and the real error (`errorFields` in `lib/log.ts`); read them with Vercel runtime logs.
 - Server actions that `redirect()` abort in-flight navigations; Playwright must wait for the URL change before the next `goto`.
 - `next/font/google` downloads fonts at build time (needs network).
 - Vercel functions are pinned to Mumbai (`bom1`) in `vercel.json`; keep Supabase projects in the same region (ap-south-1) so database round trips stay short. Change both together.
