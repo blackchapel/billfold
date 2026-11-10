@@ -1,6 +1,10 @@
 import "server-only";
-import { env, superAdminEmails } from "../infra/config/env";
+import { env, googleProjects, superAdminEmails } from "../infra/config/env";
 import { db } from "../infra/db/client";
+import { HmacStateSigner } from "../infra/crypto/state-signer";
+import { GoogleOAuth } from "../infra/providers/google-oauth";
+import { LiveConnectionProbe } from "../infra/providers/connection-probe";
+import { DrizzleConnectionRepository } from "../infra/repositories/connection-repository";
 import { OrgSecretBox } from "../infra/crypto/org-secret-box";
 import { HashedInviteCodes } from "../infra/crypto/invite-codes";
 import { DrizzleAllowlistRepository } from "../infra/repositories/allowlist-repository";
@@ -11,6 +15,8 @@ import { DrizzleOrgRepository } from "../infra/repositories/org-repository";
 import { PostgresRateLimiter } from "../infra/repositories/rate-limiter";
 import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
+import { AddMailAccount, ListConnections, RemoveConnection, TestConnection } from "../application/connections";
+import { CompleteGoogleConnect } from "../application/google-connect";
 import { AuthorizationService } from "../application/authorization";
 import { CreateOrg } from "../application/create-org";
 import { AcceptInvite, CreateInvite, RevokeInvite } from "../application/invites";
@@ -31,10 +37,16 @@ function build() {
   const limiter = new PostgresRateLimiter(database);
   const codes = new HashedInviteCodes();
   const authz = new AuthorizationService(orgs, members);
+  const connections = new DrizzleConnectionRepository(database);
+  const secretBox = new OrgSecretBox(database, env().MASTER_ENCRYPTION_KEY);
+  const google = new GoogleOAuth(googleProjects());
+  const probe = new LiveConnectionProbe(google);
 
   return {
-    repos: { allowlist, users, orgs, members, invites, audit },
-    secretBox: new OrgSecretBox(database, env().MASTER_ENCRYPTION_KEY),
+    repos: { allowlist, users, orgs, members, invites, audit, connections },
+    secretBox,
+    google,
+    stateSigner: new HmacStateSigner(env().MASTER_ENCRYPTION_KEY),
     authz,
     signInGate: new SignInGate(allowlist, users, superAdminEmails()),
     createOrg: new CreateOrg(orgs, users, audit),
@@ -47,6 +59,11 @@ function build() {
     changeMemberRole: new ChangeMemberRole(members, authz, audit),
     setMemberOverrides: new SetMemberOverrides(members, authz, audit),
     removeMember: new RemoveMember(members, authz, audit),
+    listConnections: new ListConnections(connections),
+    addMailAccount: new AddMailAccount(connections, authz, secretBox, probe, systemClock, audit),
+    testConnection: new TestConnection(connections, authz, secretBox, probe, systemClock),
+    removeConnection: new RemoveConnection(connections, authz, audit),
+    completeGoogleConnect: new CompleteGoogleConnect(connections, authz, secretBox, google, probe, systemClock, audit),
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }

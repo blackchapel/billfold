@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { newDataKey, open, parseMasterKey, seal } from "@/server/infra/crypto/envelope";
+import { rewrapDataKey } from "@/server/infra/crypto/rewrap";
 import { HashedInviteCodes } from "@/server/infra/crypto/invite-codes";
 
 describe("envelope encryption", () => {
@@ -31,5 +32,19 @@ describe("invite codes", () => {
     const { code, hash } = svc.generate();
     expect(code).toMatch(/^[A-Z2-9]{12}$/);
     expect(svc.hash(code.toLowerCase())).toBe(hash);
+  });
+});
+
+describe("rewrapDataKey", () => {
+  it("moves a data key to a new master key without changing what it decrypts", () => {
+    const oldKey = randomBytes(32).toString("base64");
+    const newKey = randomBytes(32).toString("base64");
+    const dataKey = newDataKey();
+    const secret = seal(dataKey, "refresh-token");
+    const wrapped = seal(parseMasterKey(oldKey), dataKey.toString("base64"));
+    const rewrapped = rewrapDataKey(wrapped, oldKey, newKey);
+    expect(() => open(parseMasterKey(oldKey), rewrapped)).toThrow();
+    const recovered = Buffer.from(open(parseMasterKey(newKey), rewrapped), "base64");
+    expect(open(recovered, secret)).toBe("refresh-token");
   });
 });

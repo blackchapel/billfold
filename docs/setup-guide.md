@@ -57,7 +57,31 @@ real data. The free plan allows two projects. If you skip it, both branches shar
      - `https://billfold-git-develop-YOUR-VERCEL-TEAM.vercel.app/auth/callback`
      - `http://localhost:3000/auth/callback`
 
-Later phases add Drive (this same project) and a second project B for Gmail; see `docs/google-setup.md` when we get there.
+Drive and Gmail connections use the separate steps in **2b** below (Phase 2).
+
+## 2b. Google Cloud for connections (Drive and Gmail)
+
+These are **not** the login client from step 2. Billfold talks to Google directly here (not through Supabase), so the
+redirect address is Billfold's own: `https://YOUR-DOMAIN/api/connections/google/callback`. Leave the Connect buttons alone
+until this is done; they show "not set up yet" and nothing breaks.
+
+**Drive (project A, the verified one).**
+1. console.cloud.google.com > project A > **APIs & Services > Library** > enable **Google Drive API**.
+2. **OAuth consent screen > Data access**: make sure `.../auth/drive.file` is listed (it is a non-sensitive scope, so no extra review).
+3. **Credentials > Create credentials > OAuth client ID** > Web application, name `Billfold Drive`. Under **Authorized redirect URIs** add one line per place Billfold runs:
+   `https://YOUR-PRODUCTION-DOMAIN/api/connections/google/callback` and `https://YOUR-DEVELOP-DOMAIN/api/connections/google/callback` (the same address you set as `NEXT_PUBLIC_APP_URL`).
+4. Copy the client ID and secret into Vercel as `GOOGLE_A_CLIENT_ID` and `GOOGLE_A_CLIENT_SECRET` (Production and Preview).
+
+**Gmail (project B, the unverified one).**
+1. Create a second Google Cloud project, enable the **Gmail API**.
+2. **OAuth consent screen**: External, **Testing** mode. Under **Test users** add every Google address that will connect a mailbox (up to 100). Add scopes `gmail.readonly` and `gmail.send`.
+   Google shows an "unverified app" warning; tap **Advanced > Continue**. Testing-mode refresh tokens expire after **7 days**, so a Gmail connection
+   will show "needs attention" and must be reconnected weekly. For no expiry, move the consent screen to **In production** (still unverified: up to 100 users, same warning, tokens last).
+3. Create a Web client `Billfold Gmail` with the same two redirect URIs as above.
+4. Put the ID and secret in Vercel as `GOOGLE_B_CLIENT_ID` and `GOOGLE_B_CLIENT_SECRET`. Redeploy.
+
+**App passwords instead of Gmail sign-in.** In Billfold > Connections you can add any mailbox that offers IMAP (to read bills) and SMTP (to send).
+For Gmail: Google Account > Security > 2-Step Verification on > **App passwords** > create one. Billfold tests the login before saving it.
 
 ## 3. Secrets you generate yourself
 
@@ -89,6 +113,8 @@ unrecoverable.** Use a *different* `MASTER_ENCRYPTION_KEY` for develop and produ
 | `SUPER_ADMIN_EMAILS` | your Gmail | your Gmail |
 | `NEXT_PUBLIC_APP_URL` | `https://YOUR-PRODUCTION-DOMAIN` | `https://billfold-git-develop-YOUR-VERCEL-TEAM.vercel.app` |
 | `CRON_SECRET` | secret from step 3 | same or another |
+| `GOOGLE_A_CLIENT_ID` / `GOOGLE_A_CLIENT_SECRET` | from step 2b (optional until then) | same |
+| `GOOGLE_B_CLIENT_ID` / `GOOGLE_B_CLIENT_SECRET` | from step 2b (optional until then) | same |
 
    In the Add dialog, tick only **Production** for the first column and only **Preview** for the second. For the Preview
    ones you can pin them to the `develop` branch.

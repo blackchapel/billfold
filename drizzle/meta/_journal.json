@@ -15,6 +15,13 @@
       "when": 1794299661934,
       "tag": "0001_rls_and_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794313932603,
+      "tag": "0002_fearless_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

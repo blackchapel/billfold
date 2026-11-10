@@ -65,7 +65,7 @@ Secrets never client-side/logged. RLS on every table (deny by default). Invite c
 Test mode (`BILLFOLD_TEST_MODE=1`) is inert in production. Jio PDF passwords redacted everywhere (wired in Phases 3–4).
 
 ## Folder map
-`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health) ·
+`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/connections/google) ·
 `src/components/{ui,features}` · `src/hooks` · `src/domain` · `src/server/{application,http,infra,composition-root}` ·
 `src/lib` · `src/constants` · `src/types` · `drizzle/` SQL migrations · `tests/{unit,integration,e2e,fakes}` · `docs/` · `scripts/`.
 
@@ -76,8 +76,8 @@ Local test Postgres in this sandbox: `/var/lib/pgtest` on port 54329 (db `billfo
 
 ## Environment variables (names only; see `.env.example`)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (pooler), `MASTER_ENCRYPTION_KEY`, `SUPER_ADMIN_EMAILS`,
-`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`; test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
-Later: Google project A/B client IDs+secrets, `GEMINI_API_KEY`.
+`NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, optional `GOOGLE_A_CLIENT_ID/SECRET` (Drive, project A) and `GOOGLE_B_CLIENT_ID/SECRET` (Gmail, project B); test only: `BILLFOLD_TEST_MODE`, `TEST_DATABASE_URL`, `PW_CHROMIUM_PATH`.
+Later: `GEMINI_API_KEY`.
 
 ## Current status
 - **Phase 1 (foundation) done** on `feature/phase-1-foundation`: schema + migrations + RLS, envelope crypto, Google sign-in via Supabase with
@@ -85,7 +85,10 @@ Later: Google project A/B client IDs+secrets, `GEMINI_API_KEY`.
   test mode, `verify:ui` (9 specs pass), 38 unit/integration tests.
 - Phase 0 platform spikes (PDF decrypt, email→PDF, IMAP/SMTP on Vercel, current free-tier limits, Gemini terms) are **deferred** to the
   phase that needs them (ADR 0005).
-- Not yet built: connections (P2), sources/run configs (P3), pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
+- **Phase 2 (connections) built** on `claude/shared-conversation-link-9vw8na`: `connections` table (sealed secret, RLS), Drive/Gmail Google OAuth (`/api/connections/google/*`),
+  IMAP/SMTP app-password accounts tested before saving, Connections page, `scripts/rotate-master-key.mts`, ADR 0006. Needs owner setup: Google projects (docs/setup-guide.md 2b) and env vars.
+  Real Drive/Gmail round trips and the IMAP probe against a real server are not yet exercised (no credentials / IMAP server in the sandbox).
+- Not yet built: sources/run configs (P3), pipeline (P4), reports/insights (P5), sending (P6), legal pages/landing polish (P7).
 - Phase 1 leftovers done: real Google sign-in works on billfold-dev; org rename / transfer ownership / delete (soft delete + key shredding) in Settings.
 - Known gaps:
   brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet.

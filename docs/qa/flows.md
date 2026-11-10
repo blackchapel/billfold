@@ -17,9 +17,13 @@ Add or update a flow in the same commit as the feature that changes it.
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable (arrive with later phases)
-Connections, sources and source tester, run configs, runs and retry, review queue, manual bills, reports, trends,
+Sources and source tester, run configs, runs and retry, review queue, manual bills, reports, trends,
 search, exports, recipients, templates, composer, sending (including a Member without `reports.send` calling the
 endpoint directly), sent log, org deletion.
 
+## Connections (Phase 2) - manual until Google credentials exist
+Open Connections as Owner: add a mail account with a wrong app password (rejected, nothing saved) and a right one (saved, shows "working"); press Test; Remove.
+As a Viewer the page lists accounts but shows no buttons. Unit and integration tests cover the rules; `verify:ui` specs for this page are not written yet.
+
 ## Manual checks that need real Google
-Real Google sign-in round trip, and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.
+Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Remove), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.

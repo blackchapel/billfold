@@ -1,4 +1,5 @@
 import type { PermissionOverrides, Role } from "../policies/permissions";
+import type { ConnectionConfig, ConnectionKind, ConnectionStatus } from "../value-objects/connection";
 
 export interface UserRecord {
   id: string;
@@ -48,4 +49,28 @@ export interface AllowlistEntry {
   note: string | null;
   addedBy: string | null;
   createdAt: Date;
+}
+
+/** A linked external account. Never carries the secret; read that separately and only on the server. */
+export interface ConnectionRecord {
+  id: string;
+  orgId: string;
+  kind: ConnectionKind;
+  label: string;
+  accountEmail: string;
+  config: ConnectionConfig;
+  status: ConnectionStatus;
+  lastCheckedAt: Date | null;
+  lastError: string | null;
+  createdAt: Date;
+}
+
+export interface NewConnection {
+  orgId: string;
+  kind: ConnectionKind;
+  label: string;
+  accountEmail: string;
+  config: ConnectionConfig;
+  secretCiphertext: string;
+  createdBy: string;
 }

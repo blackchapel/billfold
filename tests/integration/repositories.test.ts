@@ -7,6 +7,7 @@ import { CreateOrg } from "@/server/application/create-org";
 import { HashedInviteCodes } from "@/server/infra/crypto/invite-codes";
 import { OrgSecretBox } from "@/server/infra/crypto/org-secret-box";
 import { DrizzleAuditLogRepository } from "@/server/infra/repositories/audit-log-repository";
+import { DrizzleConnectionRepository } from "@/server/infra/repositories/connection-repository";
 import { DrizzleInviteRepository } from "@/server/infra/repositories/invite-repository";
 import { DrizzleMemberRepository } from "@/server/infra/repositories/member-repository";
 import { DrizzleOrgRepository } from "@/server/infra/repositories/org-repository";
@@ -101,6 +102,32 @@ run("repositories (real Postgres)", () => {
     await r.orgs.softDeleteAndShred(org.id);
     expect(await r.orgs.findMembershipBySlug(owner.id, org.slug)).toBeNull();
     expect(await db.select().from(orgKeys)).toHaveLength(0);
+  });
+
+  it("keeps connections per org, never returns the secret in records, and shreds with the org", async () => {
+    const r = build();
+    const repo = new DrizzleConnectionRepository(db);
+    const box = new OrgSecretBox(db, MASTER);
+    const owner = await newUser(r, "o@example.com");
+    const a = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Alpha", defaultCurrency: "INR" });
+    const b = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Beta", defaultCurrency: "INR" });
+    const cipher = await box.encrypt(a.id, JSON.stringify({ password: "hunter2-app" }));
+    const c = await repo.create({ orgId: a.id, kind: "imap", label: "Bills", accountEmail: "bills@example.com", config: { host: "imap.example.com", port: 993 }, secretCiphertext: cipher, createdBy: owner.id });
+    expect(JSON.stringify(c)).not.toContain("hunter2");
+    expect(JSON.stringify(await db.execute(sql`select * from connections`))).not.toContain("hunter2");
+    expect(await repo.list(b.id)).toEqual([]);
+    expect(await repo.find(b.id, c.id)).toBeNull();
+    expect(await repo.findSecret(b.id, c.id)).toBeNull();
+    expect(JSON.parse(await box.decrypt(a.id, (await repo.findSecret(a.id, c.id)) ?? ""))).toEqual({ password: "hunter2-app" });
+    await expect(repo.create({ orgId: a.id, kind: "imap", label: "Dup", accountEmail: "bills@example.com", config: {}, secretCiphertext: cipher, createdBy: owner.id })).rejects.toThrow();
+    await repo.recordCheck(a.id, c.id, { status: "needs_attention", error: "nope", at: new Date() });
+    expect((await repo.find(a.id, c.id))?.status).toBe("needs_attention");
+    await repo.replaceSecret(a.id, c.id, cipher);
+    expect((await repo.find(a.id, c.id))).toMatchObject({ status: "active", lastError: null });
+    await repo.remove(b.id, c.id); // wrong org: must not delete
+    expect(await repo.find(a.id, c.id)).not.toBeNull();
+    await repo.remove(a.id, c.id);
+    expect(await repo.list(a.id)).toEqual([]);
   });
 
   it("rate limiter blocks after the limit within the window", async () => {
