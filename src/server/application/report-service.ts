@@ -17,6 +17,8 @@ export interface ReportModel {
   dueSoon: BillRecord[];
   unpaidTotalMinor: bigint;
   insights: Insight[];
+  /** True for the current month: it is not finished, so it is not compared with a full month. */
+  monthInProgress: boolean;
   /** Months that have bills, newest first, for the month picker. */
   monthsWithBills: string[];
 }
@@ -49,7 +51,8 @@ export class ReportService {
       breakdown: billerBreakdown(reportBills, periodKey),
       overdue: due.overdue.map((x) => x.bill), dueSoon: due.dueSoon.map((x) => x.bill),
       unpaidTotalMinor: all.filter((b) => b.paidAt === null && b.periodKey === periodKey).reduce((t, b) => t + (b.amountMinor ?? 0n), 0n),
-      insights: buildInsights({ bills: reportBills, periodKey, today }),
+      insights: buildInsights({ bills: reportBills, periodKey, today, monthInProgress: periodKey === currentKey }),
+      monthInProgress: periodKey === currentKey,
       monthsWithBills,
     };
   }

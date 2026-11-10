@@ -186,12 +186,14 @@ describe("ReportService", () => {
     const report = await new ReportService(m.billRepo, m.clock).build(w.org.id, null);
 
     expect(report.periodKey).toBe("2026-10"); // newest month that has bills
+    expect(report.monthInProgress).toBe(false); // October is over on 1 November
     expect(report.monthsWithBills).toEqual(["2026-10", "2026-09"]);
     expect(report.trend).toHaveLength(12);
     expect(report.trend[0]?.periodKey).toBe("2025-11");
     expect(report.trend.at(-1)).toEqual({ periodKey: "2026-10", totalMinor: 173_450n, count: 3, missingAmount: 1 });
     expect(report.trend.at(-2)).toMatchObject({ periodKey: "2026-09", totalMinor: 100_000n });
     expect(report.month.totalMinor).toBe(173_450n);
+    expect((await new ReportService(m.billRepo, m.clock).build(w.org.id, "2026-11")).monthInProgress).toBe(true); // the current month is still running
     expect(report.breakdown.map((r) => r.biller)).toEqual(["Jio", "Power", "Scanned"]);
     expect(report.breakdown[0]).toMatchObject({ previousMinor: 100_000n, changePercent: 23 });
     expect(report.overdue.map((b) => b.messageKey)).toEqual(["jio-sep"]);

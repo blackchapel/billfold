@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReportDto } from "@/types/bill";
 
 const W = 640;
@@ -29,6 +29,9 @@ interface Props {
  */
 export function MonthlyChart({ trend, axis, selectedKey, hrefBase }: Props) {
   const [active, setActive] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  // On a narrow screen the chart keeps a readable size and scrolls sideways; start at the newest months, on the right.
+  useEffect(() => { scroller.current?.scrollTo({ left: scroller.current.scrollWidth }); }, []);
   const plotW = W - M.left - M.right;
   const plotH = H - M.top - M.bottom;
   const band = plotW / trend.length;
@@ -39,7 +42,9 @@ export function MonthlyChart({ trend, axis, selectedKey, hrefBase }: Props) {
   const short = (label: string) => label.slice(0, 3);
 
   return (
-    <figure className="relative">
+    <figure>
+      <div ref={scroller} className="overflow-x-auto" tabIndex={0} role="region" aria-label="Monthly totals chart, scrolls sideways on small screens">
+      <div className="relative min-w-[600px]">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="group" aria-label="Total of bills per month, last 12 months">
         {axis.ticks.map((t) => (
           <g key={t.value}>
@@ -73,6 +78,8 @@ export function MonthlyChart({ trend, axis, selectedKey, hrefBase }: Props) {
           {hovered.missing > 0 && <p className="text-muted">{hovered.missing} without an amount</p>}
         </div>
       )}
+      </div>
+      </div>
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer underline underline-offset-4">Show as a table</summary>
         <table className="mt-2 w-full max-w-md text-left text-sm">

@@ -94,6 +94,13 @@ describe("buildInsights", () => {
     const down = buildInsights({ bills: [bill({ amountMinor: 50_000n }), bill({ periodKey: "2026-09", amountMinor: 100_000n })], periodKey: "2026-10", today });
     expect(down).toEqual([{ tone: "good", text: "October is 50% lower than September (₹500.00 against ₹1,000.00)." }]);
   });
+  it("does not compare a month that is still running with a finished one", () => {
+    const bills = [bill({ amountMinor: 100_000n }), bill({ periodKey: "2026-09", amountMinor: 900_000n })];
+    expect(buildInsights({ bills, periodKey: "2026-10", today, monthInProgress: true })).toEqual([]);
+    expect(buildInsights({ bills, periodKey: "2026-10", today }).map((i) => i.text)).toEqual(["October is 89% lower than September (₹1,000.00 against ₹9,000.00)."]);
+    const riser = [bill({ amountMinor: 300_000n }), bill({ periodKey: "2026-09", amountMinor: 200_000n })];
+    expect(buildInsights({ bills: riser, periodKey: "2026-10", today, monthInProgress: true })).toEqual([]);
+  });
   it("ignores small swings and never shows more than five lines", () => {
     const many = Array.from({ length: 12 }, (_, i) => bill({ billerName: `B${i}`, needsReview: true, dueDate: i < 6 ? "2026-11-01" : "2026-11-11" }));
     expect(buildInsights({ bills: many, periodKey: "2026-10", today }).length).toBeLessThanOrEqual(5);

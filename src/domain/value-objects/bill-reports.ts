@@ -84,8 +84,8 @@ const rupees = (minor: bigint) => formatMoney({ minor, currency: INR });
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** A few plain sentences about the month. Only things worth a person's attention; never filler. */
-export function buildInsights(input: { bills: ReportBill[]; periodKey: string; today: string }): Insight[] {
-  const { bills, periodKey, today } = input;
+export function buildInsights(input: { bills: ReportBill[]; periodKey: string; today: string; monthInProgress?: boolean }): Insight[] {
+  const { bills, periodKey, today, monthInProgress = false } = input;
   const out: Insight[] = [];
 
   const review = bills.filter((b) => b.needsReview).length;
@@ -97,14 +97,15 @@ export function buildInsights(input: { bills: ReportBill[]; periodKey: string; t
   if (dueSoon.length > 0) out.push({ tone: "warn", text: `${plural(dueSoon.length, "bill is", "bills are")} due in the next 7 days (${rupees(sum(dueSoon))}).` });
 
   const [current, previous] = periodTotals(bills, [periodKey, previousPeriodKey(periodKey)]) as [PeriodTotal, PeriodTotal];
-  const change = percentChange(current.totalMinor, previous.totalMinor);
+  // A month that has only just begun is not "lower" than a full one: compare only finished months.
+  const change = monthInProgress ? null : percentChange(current.totalMinor, previous.totalMinor);
   if (change !== null && Math.abs(change) >= 5) {
     out.push({
       tone: change > 0 ? "warn" : "good",
       text: `${monthName(periodKey)} is ${Math.abs(change)}% ${change > 0 ? "higher" : "lower"} than ${monthName(previous.periodKey)} (${rupees(current.totalMinor)} against ${rupees(previous.totalMinor)}).`,
     });
   }
-  const riser = billerBreakdown(bills, periodKey)
+  const riser = monthInProgress ? undefined : billerBreakdown(bills, periodKey)
     .filter((r) => r.changePercent !== null && r.changePercent >= 20 && r.previousMinor !== null && r.totalMinor - r.previousMinor >= 50_000n)
     .sort((a, b) => Number(b.totalMinor - (b.previousMinor ?? 0n)) - Number(a.totalMinor - (a.previousMinor ?? 0n)))[0];
   if (riser) out.push({ tone: "warn", text: `${riser.biller} is up ${riser.changePercent}% on last month (${rupees(riser.totalMinor)} against ${rupees(riser.previousMinor ?? 0n)}).` });

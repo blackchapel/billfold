@@ -40,6 +40,8 @@ export interface ReportDto {
   periodKey: string;
   /** Whether the organisation has any bill at all. A month with none is still a valid month to look at. */
   hasBills: boolean;
+  /** The chosen month is the current one, still running: no comparison with last month is shown. */
+  monthInProgress: boolean;
   months: string[];
   trend: TrendPointDto[];
   axis: { max: number; ticks: { value: number; label: string }[] };

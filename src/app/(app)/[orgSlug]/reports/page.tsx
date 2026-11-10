@@ -63,7 +63,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
             <div><dt className="text-xs uppercase tracking-wide text-muted">Total for {periodLabel(r.periodKey)}</dt><dd className="mt-1 font-serif text-3xl tabular-nums">{r.monthTotalText}</dd></div>
             <div><dt className="text-xs uppercase tracking-wide text-muted">Bills</dt><dd className="mt-1 font-serif text-3xl">{r.monthCount}</dd>{r.missingAmounts > 0 && <dd className="text-xs text-muted">{r.missingAmounts} without an amount</dd>}</div>
             <div><dt className="text-xs uppercase tracking-wide text-muted">Not paid yet</dt><dd className="mt-1 font-serif text-3xl tabular-nums">{r.unpaidText}</dd></div>
-            <div><dt className="text-xs uppercase tracking-wide text-muted">Compared with last month</dt><dd className="mt-1 font-serif text-3xl">{r.changeText ? r.changeText.split(" on ")[0] : "—"}</dd>{r.previousTotalText && r.changeText && <dd className="text-xs text-muted">last month {r.previousTotalText}</dd>}</div>
+            <div><dt className="text-xs uppercase tracking-wide text-muted">Compared with last month</dt><dd className="mt-1 font-serif text-3xl">{r.changeText ? r.changeText.split(" on ")[0] : "—"}</dd>{r.monthInProgress ? <dd className="text-xs text-muted">This month is not over yet</dd> : r.previousTotalText && r.changeText && <dd className="text-xs text-muted">last month {r.previousTotalText}</dd>}</div>
           </dl>
 
           <section className="mt-10" aria-label="Last 12 months">
@@ -76,8 +76,8 @@ export default async function Reports({ params, searchParams }: { params: Promis
             <h2 className="font-serif text-2xl">By biller, {periodLabel(r.periodKey)}</h2>
             {r.breakdown.length === 0 ? <p className="mt-2 text-sm text-muted">No bills in this month.</p> : (
               <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Bills by biller">
-                <table className="w-full min-w-[28rem] text-sm">
-                  <thead><tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted"><th scope="col" className="py-2 pr-4 font-medium">Biller</th><th scope="col" className="py-2 pr-4 text-right font-medium">Bills</th><th scope="col" className="py-2 pr-4 text-right font-medium">Total</th><th scope="col" className="py-2 text-right font-medium">Against last month</th></tr></thead>
+                <table className="w-full min-w-[20rem] text-sm">
+                  <thead><tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted"><th scope="col" className="py-2 pr-4 font-medium">Biller</th><th scope="col" className="py-2 pr-4 text-right font-medium">Bills</th><th scope="col" className="py-2 pr-4 text-right font-medium">Total</th><th scope="col" className="py-2 text-right font-medium">Vs last month</th></tr></thead>
                   <tbody>{r.breakdown.map((b) => (
                     <tr key={b.biller} className="border-b border-line"><th scope="row" className="py-2 pr-4 text-left font-normal">{b.biller}</th><td className="num py-2 pr-4">{b.count}</td><td className="num py-2 pr-4">{b.totalText}</td><td className={`num py-2 ${toneClass[b.changeTone]}`}>{b.changeText}</td></tr>
                   ))}</tbody>
