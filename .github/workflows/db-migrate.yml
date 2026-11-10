@@ -22,5 +22,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
         env:
-          # Use the DIRECT connection string (port 5432) for migrations.
+          # Use the Supabase SESSION POOLER string (port 5432). The direct host is IPv6-only; GitHub runners are IPv4.
           DATABASE_URL: ${{ inputs.target == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_DEVELOP }}
