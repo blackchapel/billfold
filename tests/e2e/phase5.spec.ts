@@ -24,6 +24,7 @@ async function addManual(page: Page, f: { biller: string; amount: string; due?: 
 }
 
 test("F24 a bill the reader was unsure about is flagged, corrected and checked by a person", async ({ page }) => {
+  test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
   await signIn(page, "owner@example.com");
   // A source for scanned statements: the stub mailbox's scan has no text, so no amount can be read.
   await page.goto(`${BASE}/sources/new`);
@@ -99,6 +100,7 @@ test("F25 a bill can be added by hand, and mistakes keep what was typed", async 
 });
 
 test("F26 paying, deleting and restoring; a deleted bill's email is not filed again", async ({ page }) => {
+  test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
   page.on("dialog", (d) => void d.accept());
   await signIn(page, "owner@example.com");
   await page.goto(`${BASE}/bills`);
@@ -181,6 +183,7 @@ test("F27 search, filters and the CSV download", async ({ page, browser }) => {
 });
 
 test("F28 reports: month totals, a 12 month chart you can hover and read as a table, insights and due lists", async ({ page }) => {
+  test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
   await signIn(page, "owner@example.com");
   await addManual(page, { biller: "Gas", amount: "850", due: inDays(-2) }); // overdue
   await page.goto(`${BASE}/reports`);
