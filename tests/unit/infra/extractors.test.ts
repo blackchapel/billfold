@@ -5,7 +5,7 @@ import type { BillExtractorInput } from "@/domain/ports/services";
 
 const input = (over: Partial<BillExtractorInput> = {}): BillExtractorInput => ({
   pdfBytes: new TextEncoder().encode("%PDF-fake"), text: "Total amount due: Rs 1,234.50\nDue date: 15/12/2026",
-  hints: { sourceName: "Jio mobile", periodKey: "2026-11", currencyCode: "INR" }, model: null, ...over,
+  hints: { sourceName: "Jio mobile", periodKey: "2026-11", currencyCode: "INR" }, ...over,
 });
 const answer = (fields: object) => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(fields) }] } }] });
 const text = new TextBillExtractor();
@@ -23,10 +23,10 @@ describe("TextBillExtractor", () => {
 describe("GeminiBillExtractor", () => {
   it("sends only the PDF and a short instruction, with the key in a header and not in the URL", async () => {
     const http = vi.fn().mockResolvedValue(answer({ biller_name: "Reliance Jio", total_amount_due: "1,234.50", currency: "INR", bill_date: "2026-11-30", due_date: "2026-12-15", confidence: "high" }));
-    const out = await gemini(http as unknown as typeof fetch).extract(input({ model: "gemini-custom-1" }));
+    const out = await gemini(http as unknown as typeof fetch).extract(input());
     expect(out).toEqual({ amountMinor: 123450n, billDate: "2026-11-30", dueDate: "2026-12-15", billerName: "Reliance Jio", confidence: "high", method: "gemini", note: null });
     const [url, init] = http.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-custom-1:generateContent");
+    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent");
     expect(url).not.toContain("test-key");
     expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe("test-key");
     const body = JSON.parse(String(init.body));
@@ -35,10 +35,11 @@ describe("GeminiBillExtractor", () => {
     expect(body.contents[0].parts[1].text).toContain('"Jio mobile"');
     expect(JSON.stringify(body)).not.toMatch(/password|subject|@/i);
   });
-  it("uses the default model when the org's choice looks wrong", async () => {
-    const http = vi.fn().mockResolvedValue(answer({ total_amount_due: "10", confidence: "medium" }));
-    await gemini(http as unknown as typeof fetch).extract(input({ model: "../../evil?x=1" }));
-    expect(String(http.mock.calls[0]?.[0])).toContain("/models/gemini-test:generateContent");
+  it("refuses a model name that could change the request path, and falls back to the built-in reader", async () => {
+    const http = vi.fn();
+    const out = await new GeminiBillExtractor("test-key", "../../evil?x=1", text, http as unknown as typeof fetch).extract(input());
+    expect(http).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ method: "text", amountMinor: 123450n });
   });
   it("reports a missing or unusable amount as low confidence with a note", async () => {
     const nothing = await gemini(vi.fn().mockResolvedValue(answer({ total_amount_due: null, confidence: "high" })) as unknown as typeof fetch).extract(input());

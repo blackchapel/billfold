@@ -57,6 +57,9 @@ export const runs = pgTable("runs", {
   runConfigId: uuid("run_config_id").references(() => runConfigs.id, { onDelete: "set null" }),
   configName: text("config_name").notNull(),
   periodKey: text("period_key").notNull(),
+  // Copied from the run configuration when the run starts, so changing or deleting the configuration cannot break a run in progress.
+  driveConnectionId: uuid("drive_connection_id").references(() => connections.id, { onDelete: "set null" }),
+  driveFolder: text("drive_folder").notNull(),
   status: text("status").notNull().default("processing"),
   startedBy: uuid("started_by").notNull().references(() => users.id),
   finishedAt: timestamp("finished_at", { withTimezone: true }),

@@ -125,6 +125,9 @@ export interface RunRecord {
   runConfigId: string | null;
   configName: string;
   periodKey: string;
+  /** Null once the Drive connection has been removed. */
+  driveConnectionId: string | null;
+  driveFolder: string;
   status: RunStatus;
   startedBy: string;
   createdAt: Date;
@@ -145,6 +148,7 @@ export interface RunItemRecord {
   fromAddress: string;
   subject: string;
   attachmentName: string | null;
+  itemKey: string;
   status: RunItemStatus;
   error: string | null;
   attempts: number;

@@ -7,7 +7,7 @@ import { runItems } from "../db/schema";
 
 const toItem = (r: typeof runItems.$inferSelect): RunItemRecord => ({
   id: r.id, runId: r.runId, orgId: r.orgId, sourceId: r.sourceId, sourceName: r.sourceName, messageId: r.messageId,
-  messageDate: r.messageDate, fromAddress: r.fromAddress, subject: r.subject, attachmentName: r.attachmentName,
+  messageDate: r.messageDate, fromAddress: r.fromAddress, subject: r.subject, attachmentName: r.attachmentName, itemKey: r.itemKey,
   status: r.status as RunItemStatus, error: r.error, attempts: r.attempts, billId: r.billId,
 });
 

@@ -2,11 +2,19 @@ import "server-only";
 import { env, googleProjects, superAdminEmails } from "../infra/config/env";
 import { db } from "../infra/db/client";
 import { isTestMode } from "../infra/auth/test-mode";
+import { GoogleDriveStore } from "../infra/providers/drive-store";
+import { GeminiBillExtractor } from "../infra/providers/gemini-extractor";
+import { LiveMailFetch } from "../infra/providers/mail-fetch";
 import { LiveMailSearch } from "../infra/providers/mail-search";
-import { StubConnectionProbe, StubGoogleOAuth, StubMailSearch } from "../infra/providers/test-mode-providers";
+import { PdfLibTools } from "../infra/providers/pdf-tools";
+import { StubConnectionProbe, StubDriveStore, StubGoogleOAuth, StubMailFetch, StubMailSearch } from "../infra/providers/test-mode-providers";
+import { TextBillExtractor } from "../infra/providers/text-bill-extractor";
 import { HmacStateSigner } from "../infra/crypto/state-signer";
 import { GoogleOAuth } from "../infra/providers/google-oauth";
 import { LiveConnectionProbe } from "../infra/providers/connection-probe";
+import { DrizzleBillRepository } from "../infra/repositories/bill-repository";
+import { DrizzleRunItemRepository } from "../infra/repositories/run-item-repository";
+import { DrizzleRunRepository } from "../infra/repositories/run-repository";
 import { DrizzleConnectionRepository } from "../infra/repositories/connection-repository";
 import { DrizzleConnectionUsage } from "../infra/repositories/connection-usage";
 import { DrizzleRunConfigRepository } from "../infra/repositories/run-config-repository";
@@ -23,6 +31,8 @@ import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
 import { CheckAllConnections } from "../application/connection-health";
 import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "../application/connections";
+import { ProcessNextItem } from "../application/run-processor";
+import { CancelRun, ListRuns, RetryRunItems, StartRun } from "../application/runs";
 import { DeleteRunConfig, ListRunConfigs, SaveRunConfig } from "../application/run-configs";
 import { TestSource } from "../application/source-tester";
 import { DeleteSource, ListSources, SaveSource } from "../application/sources";
@@ -54,10 +64,18 @@ function build() {
   const runConfigs = new DrizzleRunConfigRepository(database);
   const usage = new DrizzleConnectionUsage(database);
   const mailSearch = isTestMode() ? new StubMailSearch() : new LiveMailSearch(google);
+  const runRepo = new DrizzleRunRepository(database);
+  const runItemRepo = new DrizzleRunItemRepository(database);
+  const billRepo = new DrizzleBillRepository(database);
+  const mailFetch = isTestMode() ? new StubMailFetch() : new LiveMailFetch(google);
+  const driveStore = isTestMode() ? new StubDriveStore() : new GoogleDriveStore(google);
+  const textReader = new TextBillExtractor();
+  const reader = !isTestMode() && env().GEMINI_API_KEY ? new GeminiBillExtractor(env().GEMINI_API_KEY as string, env().GEMINI_MODEL ?? "gemini-2.5-flash", textReader) : textReader;
+  const pdfTools = new PdfLibTools();
   const probe = isTestMode() ? new StubConnectionProbe() : new LiveConnectionProbe(google);
 
   return {
-    repos: { allowlist, users, orgs, members, invites, audit, connections },
+    repos: { allowlist, users, orgs, members, invites, audit, connections, bills: billRepo },
     secretBox,
     google,
     stateSigner: new HmacStateSigner(env().MASTER_ENCRYPTION_KEY),
@@ -87,6 +105,11 @@ function build() {
     listRunConfigs: new ListRunConfigs(runConfigs),
     saveRunConfig: new SaveRunConfig(runConfigs, sources, connections, authz, audit),
     deleteRunConfig: new DeleteRunConfig(runConfigs, authz, audit),
+    startRun: new StartRun(runRepo, runItemRepo, runConfigs, sources, connections, billRepo, authz, secretBox, mailSearch, systemClock, audit),
+    processNextItem: new ProcessNextItem(runRepo, runItemRepo, sources, connections, billRepo, authz, secretBox, mailFetch, pdfTools, reader, driveStore, systemClock, audit),
+    cancelRun: new CancelRun(runRepo, runItemRepo, authz, systemClock, audit),
+    retryRunItems: new RetryRunItems(runRepo, runItemRepo, authz, audit),
+    listRuns: new ListRuns(runRepo, runItemRepo, billRepo),
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }

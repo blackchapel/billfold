@@ -4,10 +4,10 @@ import type { AuditEntry } from "@/domain/ports/repositories";
 import type { AllowlistRepository, AuditLogRepository, InviteRepository, MemberRepository, OrgRepository, UserRepository } from "@/domain/ports/repositories";
 import type { InviteRecord, MemberRecord, MembershipWithOrg, OrgRecord, UserRecord } from "@/domain/ports/records";
 import type { Clock, ConnectionProbe, GoogleOAuthClient, InviteCodeService, ProbeResult, RateLimiter, SecretBox } from "@/domain/ports/services";
-import type { ConnectionRepository, ConnectionUsage, RunConfigRepository, SourceRepository } from "@/domain/ports/repositories";
+import type { BillRepository, ConnectionRepository, ConnectionUsage, RunConfigRepository, RunItemRepository, RunRepository, SourceRepository } from "@/domain/ports/repositories";
 import type { MessageSummary } from "@/domain/value-objects/source-rules";
-import type { ConnectionRecord, RunConfigRecord, SourceRecord } from "@/domain/ports/records";
-import type { MailSearch, MailSearchInput } from "@/domain/ports/services";
+import type { BillRecord, ConnectionRecord, RunConfigRecord, RunCounts, RunItemRecord, RunRecord, SourceRecord } from "@/domain/ports/records";
+import type { DriveStore, DriveUploadInput, FetchedMessage, MailFetch, MailFetchInput, MailSearch, MailSearchInput } from "@/domain/ports/services";
 
 export class Memory {
   allowed = new Set<string>();
@@ -26,6 +26,14 @@ export class Memory {
   mailbox: MessageSummary[] = [];
   searchFails = false;
   searched: MailSearchInput[] = [];
+  runs = new Map<string, RunRecord>();
+  runItems = new Map<string, RunItemRecord>();
+  bills = new Map<string, BillRecord>();
+  /** What the fake mailbox returns when an email is downloaded, by message id. An Error value makes the download fail. */
+  emails = new Map<string, FetchedMessage | Error>();
+  fetched: MailFetchInput[] = [];
+  uploads: DriveUploadInput[] = [];
+  uploadFails = false;
   revoked: string[] = [];
   revokeFails = false;
   googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
@@ -127,6 +135,74 @@ export class Memory {
   };
   mailSearch: MailSearch = {
     search: async (input) => { this.searched.push(input); if (this.searchFails) throw new Error("imap exploded: user=a pass=hunter2"); return this.mailbox; },
+  };
+  runRepo: RunRepository = {
+    create: async (orgId, r) => { const run: RunRecord = { id: randomUUID(), orgId, ...r, status: "processing", createdAt: this.now, finishedAt: null }; this.runs.set(run.id, run); return { ...run }; },
+    find: async (o, id) => { const r = this.runs.get(id); return r && r.orgId === o ? { ...r } : null; },
+    list: async (o, limit) => [...this.runs.values()].filter((r) => r.orgId === o).slice(-limit).reverse(),
+    setStatus: async (o, id, status, finishedAt) => { const r = this.runs.get(id); if (r && r.orgId === o) { r.status = status; r.finishedAt = finishedAt; } },
+    counts: async (o, ids) => {
+      const out = new Map<string, RunCounts>();
+      for (const id of ids) {
+        const c: RunCounts = { pending: 0, processing: 0, done: 0, failed: 0, skipped: 0 };
+        for (const i of this.runItems.values()) if (i.runId === id && i.orgId === o) c[i.status]++;
+        out.set(id, c);
+      }
+      return out;
+    },
+  };
+  /** Only items older than this many ms count as abandoned: mirrors the 5 minute rule in the use case. */
+  private claimTimes = new Map<string, Date>();
+  runItemRepo: RunItemRepository = {
+    insertMany: async (orgId, runId, items) => {
+      for (const i of items) {
+        if ([...this.runItems.values()].some((x) => x.runId === runId && x.itemKey === i.itemKey)) continue; // unique (run, key)
+        const rec: RunItemRecord = { id: randomUUID(), runId, orgId, sourceId: i.sourceId, sourceName: i.sourceName, messageId: i.messageId, messageDate: i.messageDate, fromAddress: i.fromAddress, subject: i.subject, attachmentName: i.attachmentName, itemKey: i.itemKey, status: i.status, error: i.error, attempts: 0, billId: null };
+        this.runItems.set(rec.id, rec);
+      }
+    },
+    list: async (o, runId) => [...this.runItems.values()].filter((i) => i.runId === runId && i.orgId === o),
+    find: async (o, id) => { const i = this.runItems.get(id); return i && i.orgId === o ? { ...i } : null; },
+    claimNext: async (o, runId, staleBefore) => {
+      const next = [...this.runItems.values()].find((i) => i.runId === runId && i.orgId === o && (i.status === "pending" || (i.status === "processing" && (this.claimTimes.get(i.id) ?? this.now) < staleBefore)));
+      if (!next) return null;
+      next.status = "processing"; next.attempts++; this.claimTimes.set(next.id, this.now);
+      return { ...next };
+    },
+    markDone: async (o, id, billId) => { const i = this.runItems.get(id); if (i && i.orgId === o) { i.status = "done"; i.billId = billId; i.error = null; } },
+    markFailed: async (o, id, error) => { const i = this.runItems.get(id); if (i && i.orgId === o) { i.status = "failed"; i.error = error; } },
+    retryFailed: async (o, runId, max, itemId) => {
+      let n = 0;
+      for (const i of this.runItems.values()) if (i.runId === runId && i.orgId === o && i.status === "failed" && i.attempts < max && (!itemId || i.id === itemId)) { i.status = "pending"; i.error = null; n++; }
+      return n;
+    },
+    skipPending: async (o, runId, note) => { let n = 0; for (const i of this.runItems.values()) if (i.runId === runId && i.orgId === o && i.status === "pending") { i.status = "skipped"; i.error = note; n++; } return n; },
+  };
+  billRepo: BillRepository = {
+    existingKeys: async (o, keys) => new Set([...this.bills.values()].filter((b) => b.orgId === o && keys.includes(b.messageKey)).map((b) => b.messageKey)),
+    record: async (orgId, bill, file) => {
+      if ([...this.bills.values()].some((b) => b.orgId === orgId && b.messageKey === bill.messageKey)) throw new Error("duplicate key value violates unique constraint");
+      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, createdAt: this.now, files: [{ ...file, id: randomUUID() }] };
+      this.bills.set(rec.id, rec);
+      return rec;
+    },
+    list: async (o, period) => [...this.bills.values()].filter((b) => b.orgId === o && (!period || b.periodKey === period)),
+  };
+  mailFetch: MailFetch = {
+    fetch: async (input) => {
+      this.fetched.push(input);
+      const hit = this.emails.get(input.messageId);
+      if (!hit) throw new Error("not in the fake mailbox");
+      if (hit instanceof Error) throw hit;
+      return hit;
+    },
+  };
+  driveStore: DriveStore = {
+    upload: async (input) => {
+      if (this.uploadFails) throw new Error("Drive request failed: 500 token=SECRET-TOKEN");
+      this.uploads.push(input);
+      return { fileId: `file-${this.uploads.length}`, folderId: `folder-${input.folderPath.join("/")}`, webViewLink: `https://drive.test/${this.uploads.length}` };
+    },
   };
   clock: Clock = { now: () => this.now };
   codes: InviteCodeService = { generate: () => ({ code: "CODE12345678", hash: "h:CODE12345678" }), hash: (c) => `h:${c.toUpperCase()}` };

@@ -1,5 +1,5 @@
 {
-  "id": "6a14443a-6d8f-45db-8c2d-caf33cded709",
+  "id": "41967797-947a-480c-b132-2eff54108ec4",
   "prevId": "99d608b5-a23a-4e49-bbe6-7e039a8b74d6",
   "version": "7",
   "dialect": "postgresql",
@@ -2042,6 +2042,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "drive_connection_id": {
+          "name": "drive_connection_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "drive_folder": {
+          "name": "drive_folder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -2119,6 +2131,19 @@
           "tableTo": "run_configs",
           "columnsFrom": [
             "run_config_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "runs_drive_connection_id_connections_id_fk": {
+          "name": "runs_drive_connection_id_connections_id_fk",
+          "tableFrom": "runs",
+          "tableTo": "connections",
+          "columnsFrom": [
+            "drive_connection_id"
           ],
           "columnsTo": [
             "id"

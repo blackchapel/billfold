@@ -66,6 +66,8 @@ CREATE TABLE "runs" (
 	"run_config_id" uuid,
 	"config_name" text NOT NULL,
 	"period_key" text NOT NULL,
+	"drive_connection_id" uuid,
+	"drive_folder" text NOT NULL,
 	"status" text DEFAULT 'processing' NOT NULL,
 	"started_by" uuid NOT NULL,
 	"finished_at" timestamp with time zone,
@@ -88,6 +90,7 @@ ALTER TABLE "run_items" ADD CONSTRAINT "run_items_source_id_sources_id_fk" FOREI
 ALTER TABLE "run_items" ADD CONSTRAINT "run_items_bill_id_bills_id_fk" FOREIGN KEY ("bill_id") REFERENCES "public"."bills"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "runs" ADD CONSTRAINT "runs_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "runs" ADD CONSTRAINT "runs_run_config_id_run_configs_id_fk" FOREIGN KEY ("run_config_id") REFERENCES "public"."run_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_drive_connection_id_connections_id_fk" FOREIGN KEY ("drive_connection_id") REFERENCES "public"."connections"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "runs" ADD CONSTRAINT "runs_started_by_users_id_fk" FOREIGN KEY ("started_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "bill_files_org_bill_idx" ON "bill_files" USING btree ("org_id","bill_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "bills_org_message_key_uq" ON "bills" USING btree ("org_id","message_key");--> statement-breakpoint

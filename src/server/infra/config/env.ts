@@ -10,6 +10,9 @@ const schema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   CRON_SECRET: z.string().min(16).optional(),
   // Google project A (verified: login + Drive) and project B (unverified: Gmail). Optional until the owner creates them.
+  // Optional: without a key, bills are read by the built-in text reader and nothing leaves Billfold.
+  GEMINI_API_KEY: z.string().min(10).optional(),
+  GEMINI_MODEL: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,60}$/i).optional(),
   GOOGLE_A_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_A_CLIENT_SECRET: z.string().min(1).optional(),
   GOOGLE_B_CLIENT_ID: z.string().min(1).optional(),

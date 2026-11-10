@@ -124,7 +124,7 @@ export interface ConnectionUsage {
 }
 
 export interface RunRepository {
-  create(orgId: string, run: { runConfigId: string; configName: string; periodKey: string; startedBy: string }): Promise<RunRecord>;
+  create(orgId: string, run: { runConfigId: string; configName: string; periodKey: string; driveConnectionId: string; driveFolder: string; startedBy: string }): Promise<RunRecord>;
   find(orgId: string, id: string): Promise<RunRecord | null>;
   list(orgId: string, limit: number): Promise<RunRecord[]>;
   setStatus(orgId: string, id: string, status: RunStatus, finishedAt: Date | null): Promise<void>;

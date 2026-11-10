@@ -7,13 +7,14 @@ import { runItems, runs } from "../db/schema";
 
 const toRun = (r: typeof runs.$inferSelect): RunRecord => ({
   id: r.id, orgId: r.orgId, runConfigId: r.runConfigId, configName: r.configName, periodKey: r.periodKey,
+  driveConnectionId: r.driveConnectionId, driveFolder: r.driveFolder,
   status: r.status as RunStatus, startedBy: r.startedBy, createdAt: r.createdAt, finishedAt: r.finishedAt,
 });
 
 export class DrizzleRunRepository implements RunRepository {
   constructor(private readonly db: Db) {}
 
-  async create(orgId: string, run: { runConfigId: string; configName: string; periodKey: string; startedBy: string }) {
+  async create(orgId: string, run: { runConfigId: string; configName: string; periodKey: string; driveConnectionId: string; driveFolder: string; startedBy: string }) {
     const [row] = await this.db.insert(runs).values({ orgId, ...run }).returning();
     if (!row) throw new Error("Run insert returned no row");
     return toRun(row);

@@ -52,7 +52,7 @@ export class GeminiBillExtractor implements BillExtractor {
   }
 
   private async askGemini(input: BillExtractorInput): Promise<ExtractedBill> {
-    const model = input.model && MODEL_NAME.test(input.model) ? input.model : this.defaultModel;
+    const model = this.defaultModel;
     if (!MODEL_NAME.test(model)) throw new Error("Invalid model name");
     const currency = currencyByCode(input.hints.currencyCode);
     if (!currency) throw new Error("Unsupported currency");

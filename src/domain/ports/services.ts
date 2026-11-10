@@ -105,8 +105,6 @@ export interface BillExtractorInput {
   pdfBytes: Uint8Array;
   text: string;
   hints: { sourceName: string; periodKey: string; currencyCode: string };
-  /** The org's preferred Gemini model, if it set one. */
-  model: string | null;
 }
 
 export interface BillExtractor {
