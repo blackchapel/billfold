@@ -27,7 +27,8 @@ describe("brand files", () => {
     expect(m).toMatchObject({ name: "Billfold", start_url: "/", display: "standalone" });
   });
   it("lets search engines see only the front page and the legal pages", () => {
-    const rule = Array.isArray(robots().rules) ? robots().rules[0] : robots().rules;
+    const rules = robots().rules;
+    const rule = Array.isArray(rules) ? rules[0] : rules;
     expect(rule).toMatchObject({ allow: ["/$", "/privacy", "/terms"], disallow: "/" });
   });
 });
