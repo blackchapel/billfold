@@ -96,7 +96,9 @@ test("F40 organisation settings: rename keeps the address, deleting needs the ad
   await page.getByRole("button", { name: "Delete organisation" }).click();
   await expect(page.getByRole("alert").filter({ hasText: /./ }).first()).toBeVisible();
   await expect(page).toHaveURL(/\/throwaway-org\/settings$/);
-  await page.getByLabel(/Type "throwaway-org" to confirm/).fill("throwaway-org");
+  const confirm = page.getByLabel(/Type "throwaway-org" to confirm/);
+  await expect(confirm).toHaveValue(""); // React empties the field a moment after a refused attempt; type only after that
+  await confirm.fill("throwaway-org");
   await page.getByRole("button", { name: "Delete organisation" }).click();
   await expect(page).not.toHaveURL(/throwaway-org/);
   await page.goto("/throwaway-org");
