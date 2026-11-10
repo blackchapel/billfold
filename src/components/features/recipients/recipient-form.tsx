@@ -12,7 +12,7 @@ type A = (p: ActionState | null, f: FormData) => Promise<ActionState>;
 export function RecipientForm({ action, recipient, cancelHref }: { action: A; recipient?: RecipientDto; cancelHref?: string }) {
   const { formProps, pending, error } = useActionForm<void>(action as never, { resetOnSuccess: !recipient });
   return (
-    <form {...formProps} className="flex max-w-xl flex-col gap-4">
+    <form {...formProps} noValidate className="flex max-w-xl flex-col gap-4">
       <Field name="name" label="Name" required maxLength={80} defaultValue={recipient?.name} autoComplete="off" />
       <Field name="email" type="email" label="Email address" required maxLength={254} defaultValue={recipient?.email} autoComplete="off" hint="Summaries are sent to this address, one email for each person." />
       <div className="flex items-center gap-4">
