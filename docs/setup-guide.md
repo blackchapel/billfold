@@ -30,7 +30,9 @@ Every push to `develop` redeploys the preview. Merging `develop` into `main` red
    - **anon public** key → this is `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe to expose; the database denies it everything)
 4. Tap **Connect** (top bar) or **Project Settings > Database > Connection string**:
    - **Transaction pooler** string (port **6543**) → this is `DATABASE_URL` for Vercel. Replace `[YOUR-PASSWORD]` with your DB password.
-   - **Direct connection** string (port **5432**) → used only for migrations (step 5).
+   - **Session pooler** string (port **5432**, host `…pooler.supabase.com`, username `postgres.<project-ref>`) → used only for
+     migrations (step 5). Do **not** use the "Direct connection" string: it is IPv6-only on the free plan and GitHub's runners
+     cannot reach it. If your password has special characters (`@ : / # ? %`), URL-encode them or reset the password to letters and numbers.
 5. Free projects pause after about a week of no activity. Billfold includes a daily keep-alive (`vercel.json`) that prevents this.
 
 Optional but recommended: make a **second** Supabase project (`billfold-dev`) for `develop` so test data never mixes with
@@ -102,8 +104,8 @@ Never add `BILLFOLD_TEST_MODE` or `TEST_DATABASE_URL` to Vercel. Test mode is al
 Tables are created by running the SQL files in `drizzle/`. From your phone, use the GitHub Action:
 
 1. GitHub repo > **Settings > Secrets and variables > Actions > New repository secret**:
-   - `DATABASE_URL_DEVELOP` = the **Direct connection** string (port 5432) of the develop database
-   - `DATABASE_URL_PRODUCTION` = the direct string of the production database
+   - `DATABASE_URL_DEVELOP` = the **Session pooler** string (port 5432) of the develop database
+   - `DATABASE_URL_PRODUCTION` = the Session pooler string of the production database
 2. **Actions** tab > **Database migrate** > **Run workflow** > choose `develop` > Run. Check for a green tick.
    Repeat with `production` after you merge to `main`. Run it again whenever a phase adds new migrations.
 
