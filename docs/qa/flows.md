@@ -35,12 +35,16 @@ Add or update a flow in the same commit as the feature that changes it.
 | F27 | Search, month filter, Download CSV (also as someone not signed in) | Filters apply; CSV has the header, plain amounts, a defused formula cell; scoped export; no data without a session | phase5.spec.ts |
 | F28 | Open Reports: insights, due lists, month picker, chart hover / focus / table / click a column | Overdue and due-soon bills named with amounts; chart has 12 links, tooltip on hover and focus, 12-row table, columns open that month | phase5.spec.ts |
 | F29 | Viewer opens Bills and Reports | Can read, filter and download; no add, edit, paid, delete or check buttons; `/bills/new` bounces | phase5.spec.ts |
+| F30 | Add recipients (bad email, duplicate), edit, delete | Typed values survive errors; addresses stored lower-case; duplicate refused | phase6.spec.ts |
+| F31 | Templates: standard wording, a mistyped placeholder, new default, edit | Typo named and values kept; default badge moves; built-in can be restored as default | phase6.spec.ts |
+| F32 | Send: no sender yet; add SMTP; preview (subject, warning, locked frame); test to yourself; real send to 3 people with one refused; retry | Preview hides when inputs change; test goes only to the owner with `[Test]`; PDFs attached; refused address fails alone with a fixed message; retry sends no duplicates; log and Overview checklist updated | phase6.spec.ts |
+| F33 | Cancel a send | Unsent emails skipped, or "Sent" if it finished first | phase6.spec.ts |
+| F34 | Viewer opens recipients, templates, send, a sent email, reports | Can read; no forms, delete, send, retry, cancel; `/templates/new` bounces | phase6.spec.ts |
+| F35 | Reports to Send link | Opens Send with that month selected | phase6.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
-## Not yet automatable (arrive with later phases)
-Reports sent by email, trends,
-search, exports, recipients, templates, composer, sending (including a Member without `reports.send` calling the
-endpoint directly), sent log, org deletion.
+## Not yet automatable
+Legal pages and landing polish (Phase 7), org deletion through the UI. A Member without `reports.send` calling the send actions directly is covered by unit tests (`tests/unit/application/sends.test.ts`).
 
 ## Manual checks that need real Google
-Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and Gemini (both tested only with mocked HTTP), the Phase 5 screens with a few weeks of real bills (the numbers are covered by unit tests, but only you know what looks right), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.
+Real Google sign-in round trip, Connect Google Drive and Connect Gmail round trips (consent, return, status "working", Test, Reconnect, Remove, token revoked at myaccount.google.com/permissions), the source tester and a real run against a real Gmail and a real IMAP mailbox (Gmail API fetch is tested only with a mocked HTTP layer), a real Google Drive upload and download and Gemini (tested only with mocked HTTP), a real send through Gmail (project B, `gmail.send`) and through a real SMTP account: press **Send me a test** on billfold-dev and check the inbox, the attachments open and the table looks right in your mail app (SMTP is tested against a local server and Gmail against mocked HTTP), the Phase 5 screens with a few weeks of real bills (the numbers are covered by unit tests, but only you know what looks right), and rejection of a real non-allowlisted account. See `docs/setup-guide.md`.

@@ -77,6 +77,11 @@ export class DrizzleBillRepository implements BillRepository {
     return this.withFiles(rows, orgId);
   }
 
+  async findFiles(orgId: string, fileIds: string[]) {
+    if (fileIds.length === 0) return [];
+    return (await this.db.select().from(billFiles).where(and(eq(billFiles.orgId, orgId), inArray(billFiles.id, fileIds)))).map(toFile);
+  }
+
   async update(orgId: string, id: string, patch: BillPatch) {
     // Drop absent keys so "not mentioned" never means "set to null".
     const set = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as BillPatch;

@@ -94,3 +94,25 @@ describe("GoogleDriveStore", () => {
     await expect(upload(new GoogleDriveStore(google, fakeDrive().fetchImpl), { secretJson: "{}" })).rejects.toThrow(/refresh token/);
   });
 });
+
+describe("GoogleDriveStore.download", () => {
+  const store = (res: Response | Error) => new GoogleDriveStore(google, (async (url: string | URL | Request, init?: RequestInit) => {
+    expect(String(url)).toBe("https://www.googleapis.com/drive/v3/files/file%201?alt=media");
+    expect((init?.headers as Record<string, string>).authorization).toBe("Bearer google_drive:rt-d");
+    if (res instanceof Error) throw res;
+    return res;
+  }) as unknown as typeof fetch);
+  const run = (s: GoogleDriveStore, maxBytes = 100) => s.download({ secretJson, fileId: "file 1", maxBytes });
+
+  it("returns the exact bytes", async () => {
+    expect([...(await run(store(new Response(new Uint8Array([0, 255, 13, 10, 37])))))]).toEqual([0, 255, 13, 10, 37]);
+  });
+  it("refuses a file larger than the limit, whether or not Drive says its size first", async () => {
+    await expect(run(store(new Response(new Uint8Array(50), { headers: { "content-length": "50" } })), 10)).rejects.toThrow("File too large");
+    await expect(run(store(new Response(new Uint8Array(50))), 10)).rejects.toThrow("File too large");
+  });
+  it("fails with the status only, and needs a token", async () => {
+    await expect(run(store(new Response("{}", { status: 404 })))).rejects.toThrow("Drive request failed: 404");
+    await expect(new GoogleDriveStore(google).download({ secretJson: "{}", fileId: "x", maxBytes: 1 })).rejects.toThrow(/refresh token/);
+  });
+});

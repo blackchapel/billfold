@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { useActionForm } from "@/hooks/use-action-form";
@@ -32,11 +33,12 @@ type PasswordAction = (p: ActionState | null, f: FormData) => Promise<ActionStat
 
 export function UpdatePasswordForm({ action }: { action: PasswordAction }) {
   const { formAction, pending, error, state } = useActionForm<void>(action as never);
+  const id = useId(); // one per row: a shared id would point every label at the first field on the page
   return (
     <details className="text-sm">
       <summary className="cursor-pointer underline underline-offset-4">Update app password</summary>
       <form action={formAction} className="mt-2 flex max-w-sm flex-col gap-2">
-        <Field name="password" label="New app password" type="password" required autoComplete="new-password" hint="Billfold tests it before replacing the old one." />
+        <Field name="password" id={`update-password-${id}`} label="New app password" type="password" required autoComplete="new-password" hint="Billfold tests it before replacing the old one." />
         <div className="flex items-center gap-3">
           <Button type="submit" variant="secondary" disabled={pending} className="min-h-9">{pending ? "Testing…" : "Test and replace"}</Button>
           {state?.ok && <span role="status" className="text-xs text-muted">Updated.</span>}

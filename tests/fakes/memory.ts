@@ -4,10 +4,10 @@ import type { AuditEntry } from "@/domain/ports/repositories";
 import type { AllowlistRepository, AuditLogRepository, InviteRepository, MemberRepository, OrgRepository, UserRepository } from "@/domain/ports/repositories";
 import type { InviteRecord, MemberRecord, MembershipWithOrg, OrgRecord, UserRecord } from "@/domain/ports/records";
 import type { Clock, ConnectionProbe, GoogleOAuthClient, InviteCodeService, ProbeResult, RateLimiter, SecretBox } from "@/domain/ports/services";
-import type { BillRepository, ConnectionRepository, ConnectionUsage, RunConfigRepository, RunItemRepository, RunRepository, SourceRepository } from "@/domain/ports/repositories";
+import type { RecipientRepository, TemplateRepository, SendRepository, SendItemRepository, BillRepository, ConnectionRepository, ConnectionUsage, RunConfigRepository, RunItemRepository, RunRepository, SourceRepository } from "@/domain/ports/repositories";
 import type { MessageSummary } from "@/domain/value-objects/source-rules";
-import type { BillRecord, ConnectionRecord, RunConfigRecord, RunCounts, RunItemRecord, RunRecord, SourceRecord } from "@/domain/ports/records";
-import type { DriveStore, DriveUploadInput, FetchedMessage, MailFetch, MailFetchInput, MailSearch, MailSearchInput } from "@/domain/ports/services";
+import type { RecipientRecord, TemplateRecord, SendRecord, SendItemRecord, SendCounts, BillRecord, ConnectionRecord, RunConfigRecord, RunCounts, RunItemRecord, RunRecord, SourceRecord } from "@/domain/ports/records";
+import type { DriveStore, DriveUploadInput, FetchedMessage, MailSender, OutgoingEmail, MailFetch, MailFetchInput, MailSearch, MailSearchInput } from "@/domain/ports/services";
 
 export class Memory {
   allowed = new Set<string>();
@@ -197,12 +197,74 @@ export class Memory {
       && (!f.needsReview || b.needsReview) && (!f.unpaid || !b.paidAt)
       && (!f.search?.trim() || `${b.billerName}\n${b.sourceName}`.toLowerCase().includes(f.search.trim().toLowerCase()))
       && (f.deleted === "only" ? b.deletedAt !== null : b.deletedAt === null)).map((b) => ({ ...b })),
+    findFiles: async (o, ids) => [...this.bills.values()].filter((b) => b.orgId === o).flatMap((b) => b.files).filter((f) => ids.includes(f.id)),
     update: async (o, id, patch) => {
       const b = this.bills.get(id);
       if (!b || b.orgId !== o) return null;
       Object.assign(b, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
       return { ...b };
     },
+  };
+  recipients = new Map<string, RecipientRecord>();
+  recipientRepo: RecipientRepository = {
+    create: async (orgId, _by, f) => { const r = { id: randomUUID(), orgId, name: f.name, email: f.email, createdAt: this.now }; this.recipients.set(r.id, r); return { ...r }; },
+    update: async (o, id, f) => { const r = this.recipients.get(id); if (!r || r.orgId !== o) return null; Object.assign(r, f); return { ...r }; },
+    list: async (o) => [...this.recipients.values()].filter((r) => r.orgId === o).map((r) => ({ ...r })),
+    find: async (o, id) => { const r = this.recipients.get(id); return r && r.orgId === o ? { ...r } : null; },
+    findByEmail: async (o, email) => { const r = [...this.recipients.values()].find((x) => x.orgId === o && x.email.toLowerCase() === email.toLowerCase()); return r ? { ...r } : null; },
+    findMany: async (o, ids) => [...this.recipients.values()].filter((r) => r.orgId === o && ids.includes(r.id)).map((r) => ({ ...r })),
+    remove: async (o, id) => { const r = this.recipients.get(id); if (r && r.orgId === o) this.recipients.delete(id); },
+  };
+  templates = new Map<string, TemplateRecord>();
+  templateRepo: TemplateRepository = {
+    create: async (orgId, _by, f) => { const t = { id: randomUUID(), orgId, ...f, isDefault: false }; this.templates.set(t.id, t); return { ...t }; },
+    update: async (o, id, f) => { const t = this.templates.get(id); if (!t || t.orgId !== o) return null; Object.assign(t, f); return { ...t }; },
+    list: async (o) => [...this.templates.values()].filter((t) => t.orgId === o).map((t) => ({ ...t })),
+    find: async (o, id) => { const t = this.templates.get(id); return t && t.orgId === o ? { ...t } : null; },
+    findByName: async (o, name) => { const t = [...this.templates.values()].find((x) => x.orgId === o && x.name.toLowerCase() === name.toLowerCase()); return t ? { ...t } : null; },
+    setDefault: async (o, id) => { for (const t of this.templates.values()) if (t.orgId === o) t.isDefault = t.id === id; },
+    remove: async (o, id) => { const t = this.templates.get(id); if (t && t.orgId === o) this.templates.delete(id); },
+  };
+  sendRows = new Map<string, SendRecord>();
+  sendItems = new Map<string, SendItemRecord>();
+  private sendClaims = new Map<string, Date>();
+  private sendsStarted: { orgId: string; userId: string; at: Date }[] = [];
+  sendRepo: SendRepository = {
+    create: async (orgId, s) => { const r: SendRecord = { ...s, id: randomUUID(), orgId, status: "sending", createdAt: this.now, finishedAt: null }; this.sendRows.set(r.id, r); this.sendsStarted.push({ orgId, userId: s.createdBy, at: this.now }); return { ...r }; },
+    find: async (o, id) => { const r = this.sendRows.get(id); return r && r.orgId === o ? { ...r } : null; },
+    list: async (o, limit) => [...this.sendRows.values()].filter((r) => r.orgId === o).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit).map((r) => ({ ...r })),
+    setStatus: async (o, id, status, at) => { const r = this.sendRows.get(id); if (r && r.orgId === o) { r.status = status; r.finishedAt = at; } },
+    counts: async (o, ids) => {
+      const out = new Map<string, SendCounts>();
+      for (const id of ids) {
+        const c: SendCounts = { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0 };
+        for (const i of this.sendItems.values()) if (i.sendId === id && i.orgId === o) c[i.status]++;
+        out.set(id, c);
+      }
+      return out;
+    },
+    countSince: async (o, u, since) => this.sendsStarted.filter((s) => s.orgId === o && s.userId === u && s.at >= since).length,
+  };
+  sendItemRepo: SendItemRepository = {
+    insertMany: async (orgId, sendId, items) => {
+      for (const i of items) {
+        if ([...this.sendItems.values()].some((x) => x.sendId === sendId && x.recipientEmail.toLowerCase() === i.recipientEmail.toLowerCase())) continue;
+        const r: SendItemRecord = { id: randomUUID(), sendId, orgId, recipientName: i.recipientName, recipientEmail: i.recipientEmail, status: "pending", error: null, attempts: 0, sentAt: null };
+        this.sendItems.set(r.id, r);
+      }
+    },
+    list: async (o, sendId) => [...this.sendItems.values()].filter((i) => i.sendId === sendId && i.orgId === o).map((i) => ({ ...i })),
+    find: async (o, id) => { const i = this.sendItems.get(id); return i && i.orgId === o ? { ...i } : null; },
+    claimNext: async (o, sendId, staleBefore) => {
+      const next = [...this.sendItems.values()].find((i) => i.sendId === sendId && i.orgId === o && (i.status === "pending" || (i.status === "processing" && (this.sendClaims.get(i.id) ?? this.now) < staleBefore)));
+      if (!next) return null;
+      next.status = "processing"; next.attempts++; this.sendClaims.set(next.id, this.now);
+      return { ...next };
+    },
+    markSent: async (o, id, at) => { const i = this.sendItems.get(id); if (i && i.orgId === o) { i.status = "sent"; i.sentAt = at; i.error = null; } },
+    markFailed: async (o, id, error) => { const i = this.sendItems.get(id); if (i && i.orgId === o) { i.status = "failed"; i.error = error; } },
+    retryFailed: async (o, sendId, max, itemId) => { let n = 0; for (const i of this.sendItems.values()) if (i.sendId === sendId && i.orgId === o && i.status === "failed" && i.attempts < max && (!itemId || i.id === itemId)) { i.status = "pending"; i.error = null; n++; } return n; },
+    skipPending: async (o, sendId, note) => { let n = 0; for (const i of this.sendItems.values()) if (i.sendId === sendId && i.orgId === o && i.status === "pending") { i.status = "skipped"; i.error = note; n++; } return n; },
   };
   mailFetch: MailFetch = {
     fetch: async (input) => {
@@ -213,7 +275,22 @@ export class Memory {
       return hit;
     },
   };
+  /** Emails the fake "sent": filled by `mailSender`. A recipient listed in `refusedRecipients` makes the send fail. */
+  outbox: OutgoingEmail[] = [];
+  refusedRecipients = new Set<string>();
+  downloadSizes = new Map<string, number>();
+  mailSender: MailSender = {
+    send: async (email) => {
+      if (this.refusedRecipients.has(email.to.email)) throw new Error(`550 refused ${email.to.email} password=SECRET-PW`);
+      this.outbox.push(email);
+    },
+  };
   driveStore: DriveStore = {
+    download: async ({ fileId, maxBytes }) => {
+      const size = this.downloadSizes.get(fileId) ?? 10;
+      if (size > maxBytes) throw new Error("File too large");
+      return new Uint8Array(size).fill(0x25);
+    },
     upload: async (input) => {
       if (this.uploadFails) throw new Error("Drive request failed: 500 token=SECRET-TOKEN");
       this.uploads.push(input);

@@ -7,7 +7,7 @@ import { GeminiBillExtractor } from "../infra/providers/gemini-extractor";
 import { LiveMailFetch } from "../infra/providers/mail-fetch";
 import { LiveMailSearch } from "../infra/providers/mail-search";
 import { PdfLibTools } from "../infra/providers/pdf-tools";
-import { StubConnectionProbe, StubDriveStore, StubGoogleOAuth, StubMailFetch, StubMailSearch } from "../infra/providers/test-mode-providers";
+import { StubConnectionProbe, StubDriveStore, StubGoogleOAuth, StubMailFetch, StubMailSearch, StubMailSender } from "../infra/providers/test-mode-providers";
 import { TextBillExtractor } from "../infra/providers/text-bill-extractor";
 import { HmacStateSigner } from "../infra/crypto/state-signer";
 import { GoogleOAuth } from "../infra/providers/google-oauth";
@@ -34,6 +34,15 @@ import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, Upda
 import { CreateManualBill, ListBills, MarkBillChecked, SetBillDeleted, SetBillPaid, UpdateBill } from "../application/bills";
 import { ReportService } from "../application/report-service";
 import { ProcessNextItem } from "../application/run-processor";
+import { DeleteRecipient, ListRecipients, SaveRecipient } from "../application/recipients";
+import { DeleteTemplate, ListTemplates, SaveTemplate, SetDefaultTemplate } from "../application/email-templates";
+import { SendComposer } from "../application/send-composer";
+import { CancelSend, PreviewSend, ProcessNextSendItem, ReadSends, RetrySendItems, StartSend } from "../application/sends";
+import { LiveMailSender } from "../infra/providers/mail-sender";
+import { DrizzleRecipientRepository } from "../infra/repositories/recipient-repository";
+import { DrizzleTemplateRepository } from "../infra/repositories/template-repository";
+import { DrizzleSendRepository } from "../infra/repositories/send-repository";
+import { DrizzleSendItemRepository } from "../infra/repositories/send-item-repository";
 import { CancelRun, ListRuns, RetryRunItems, StartRun } from "../application/runs";
 import { DeleteRunConfig, ListRunConfigs, SaveRunConfig } from "../application/run-configs";
 import { TestSource } from "../application/source-tester";
@@ -74,6 +83,12 @@ function build() {
   const textReader = new TextBillExtractor();
   const reader = !isTestMode() && env().GEMINI_API_KEY ? new GeminiBillExtractor(env().GEMINI_API_KEY as string, env().GEMINI_MODEL ?? "gemini-2.5-flash", textReader) : textReader;
   const pdfTools = new PdfLibTools();
+  const recipientRepo = new DrizzleRecipientRepository(database);
+  const templateRepo = new DrizzleTemplateRepository(database);
+  const sendRepo = new DrizzleSendRepository(database);
+  const sendItemRepo = new DrizzleSendItemRepository(database);
+  const mailSender = isTestMode() ? new StubMailSender() : new LiveMailSender(google);
+  const composer = new SendComposer(billRepo, templateRepo, orgs, users);
   const probe = isTestMode() ? new StubConnectionProbe() : new LiveConnectionProbe(google);
 
   return {
@@ -119,16 +134,32 @@ function build() {
     setBillDeleted: new SetBillDeleted(billRepo, authz, systemClock, audit),
     listBills: new ListBills(billRepo),
     reports: new ReportService(billRepo, systemClock),
+    saveRecipient: new SaveRecipient(recipientRepo, authz, audit),
+    deleteRecipient: new DeleteRecipient(recipientRepo, authz, audit),
+    listRecipients: new ListRecipients(recipientRepo),
+    saveTemplate: new SaveTemplate(templateRepo, authz, audit),
+    setDefaultTemplate: new SetDefaultTemplate(templateRepo, authz, audit),
+    deleteTemplate: new DeleteTemplate(templateRepo, authz, audit),
+    listTemplates: new ListTemplates(templateRepo),
+    previewSend: new PreviewSend(composer, authz),
+    startSend: new StartSend(composer, sendRepo, sendItemRepo, recipientRepo, connections, users, authz, limiter, audit),
+    processNextSendItem: new ProcessNextSendItem(sendRepo, sendItemRepo, billRepo, connections, users, authz, secretBox, driveStore, mailSender, systemClock),
+    cancelSend: new CancelSend(sendRepo, sendItemRepo, authz, systemClock, audit),
+    retrySendItems: new RetrySendItems(sendRepo, sendItemRepo, authz, audit),
+    readSends: new ReadSends(sendRepo, sendItemRepo),
+    testOutbox: mailSender instanceof StubMailSender ? mailSender : null,
     manageAllowlist: new ManageAllowlist(allowlist, audit),
   };
 }
 
 export type Container = ReturnType<typeof build>;
 
-let instance: Container | null = null;
+// Kept on globalThis so the pages, server actions and route handlers of one dev server share a single container (and, in test
+// mode, the same in-memory stand-ins) even though the bundler may load this module more than once.
+const holder = globalThis as typeof globalThis & { __billfoldContainer?: Container };
 
 /** The only place concrete implementations are wired to ports. */
 export function container(): Container {
-  if (!instance) instance = build();
-  return instance;
+  if (!holder.__billfoldContainer) holder.__billfoldContainer = build();
+  return holder.__billfoldContainer;
 }

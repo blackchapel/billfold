@@ -68,7 +68,7 @@ Secrets never client-side/logged. RLS on every table (deny by default). Invite c
 Test mode (`BILLFOLD_TEST_MODE=1`) is inert in production. Jio PDF passwords redacted everywhere (wired in Phases 3–4).
 
 ## Folder map
-`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/cron/connections, api/connections/google) ·
+`src/app` routes ((auth) sign-in/not-authorised, (app) onboarding/[orgSlug]/admin, auth/callback, api/health, api/cron/connections, api/connections/google, api/test/outbox) ·
 `src/components/{ui,features}` · `src/hooks` · `src/domain` · `src/server/{application,http,infra,composition-root}` ·
 `src/lib` · `src/constants` · `src/types` · `drizzle/` SQL migrations · `tests/{unit,integration,e2e,fakes}` · `docs/` · `scripts/`.
 
@@ -94,7 +94,7 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
 - **Phase 3 (sources and run configs) done** (ADR 0007): `sources`, `run_configs`, `run_config_sources` tables; sources = mailbox + sender/subject/attachment rules + PDF password mode
   (none / saved static / Jio-style brackets / custom pattern); source tester (dry run on the real mailbox, Gmail API or IMAP, headers only); run configs = sources + mandatory Drive + folder + default month.
   Pages: Sources, Run configs. `matchesMessage`, `extractSubjectPassword`, `resolvePeriod` are the domain functions Phase 4 reuses.
-- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F29 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
+- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F35 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
   in the sandbox (IMAP, SMTP and PDF encryption are tested against real local servers / generated files); the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
 - **Phase 4 (runs / filing pipeline) done** (ADR 0008): `runs`, `run_items`, `bills`, `bill_files` tables. `StartRun` plans a month (search only), `ProcessNextItem` files one item per call (claim with `FOR UPDATE SKIP LOCKED`,
   download Gmail/IMAP, unlock PDF with `@cantoo/pdf-lib` (RC4/AES all tested), email-body bills become text PDFs, amount read by the text reader or Gemini, upload to Drive folder/month/source, bill + file saved).
@@ -102,10 +102,15 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
   Navigation fix: `currentUser`/`requireOrg` are per-request cached for pages (`requireOrgFresh` in actions), loading/error boundaries, `NavLink` pending dot, last-org write in `after()`.
 - **Phase 5 (bills and reports) done** (ADR 0009): Bills page (filters, search, review queue, edit/check, add by hand, paid, soft delete/restore, CSV export route `/[orgSlug]/bills/export`) and Reports page (month total, 12-month column chart per the dataviz skill,
   by-biller table, insights, overdue/due-soon). Pure maths in `domain/value-objects/bill-reports.ts`; `ReportService`; migration `0005` adds `paid_at`, `reviewed_*`, `deleted_*` to `bills` and the `manual` method. Overview shows a "bills need a check" notice.
-- Not yet built: sending summaries by email with the PDFs attached, recipients and templates (P6), legal pages/landing polish (P7).
+- **Phase 6 (sending summaries) done** (ADR 0010): `recipients`, `email_templates`, `sends`, `send_items` tables (migration `0006`). Pages: Send (composer with preview in a sandboxed iframe, "send me a test", sent log), Send detail (progress, retry, cancel), Recipients, Templates; Reports links to Send.
+  `SendComposer` builds the message (preview = real send); `StartSend` stores the finished subject/HTML/text and one `send_items` row per recipient; `ProcessNextSendItem` sends one email per request (claim with `FOR UPDATE SKIP LOCKED`), fetching PDFs from Drive (`DriveStore.download`) and sending through `MailSender` (`GmailSender` raw MIME or `SmtpSender`).
+  Permissions `reports.send`, `recipients.manage`, `templates.manage`; limits in `SEND_LIMITS` (25 recipients, 40 PDFs, 18 MB, 10 sends/hour). Test mode: `StubMailSender` keeps mail in memory, listed by `/api/test/outbox` (404 outside test mode); an address containing "bounce" is refused.
+- Not yet built: legal pages/landing polish (P7).
 - Known gaps: brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet (Phase 7).
 
 ## Gotchas
+- The container is cached on `globalThis` (`composition-root/container.ts`) so route handlers and server actions share one instance (and the test-mode stubs) in a dev server.
+- Gmail connections already request `gmail.send` (project B consent screen must list it, see the setup guide); no reconnect is needed. Real Gmail/SMTP delivery cannot be tested in the sandbox beyond a local SMTP server and mocked HTTP.
 - Next 16: middleware is `src/proxy.ts`. ESLint uses native flat config from `eslint-config-next`.
 - **`DATABASE_URL` must be the Supabase Session pooler string (port 5432), in Vercel production, preview and GitHub secrets.** The Transaction pooler (6543)
   worked on a fresh serverless instance but then hung (`GET /` hit the 300s limit) or returned an instant `57014 statement timeout` on reused instances;

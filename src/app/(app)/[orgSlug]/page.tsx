@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { RUN_STATUS_LABELS, periodLabel } from "@/constants/runs";
 import { needsReviewCount } from "@/server/http/queries/bill-queries";
 import { listConnections } from "@/server/http/queries/connection-queries";
+import { listSendSummaries } from "@/server/http/queries/send-queries";
 import { listRuns } from "@/server/http/queries/run-queries";
 import { listRunConfigs, listSources } from "@/server/http/queries/source-queries";
 import { requireOrg } from "@/server/http/session";
@@ -14,12 +15,14 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
   const { membership } = await requireOrg(orgSlug);
   const orgId = membership.orgId;
   const [connections, sources, configs, runs, toCheck] = await Promise.all([listConnections(orgId), listSources(orgId), listRunConfigs(orgId), listRuns(orgId), needsReviewCount(orgId)]);
+  const sends = await listSendSummaries(orgId);
   const broken = connections.filter((c) => c.status !== "active");
   const steps = [
     { done: connections.some((c) => c.kind === "gmail" || c.kind === "imap") && connections.some((c) => c.kind === "google_drive"), href: "/connections", title: "Connect a mailbox and a Google Drive", hint: "Where bills come from, and where the PDFs are filed." },
     { done: sources.length > 0, href: "/sources", title: "Describe your bills as sources", hint: "Who sends them and how the PDF is locked. Use the test button to check." },
     { done: configs.length > 0, href: "/run-configs", title: "Create a run configuration", hint: "Which sources to collect, and the Drive folder to file them in." },
     { done: runs.length > 0, href: "/runs", title: "Start your first run", hint: "Collect a month of bills and file them." },
+    { done: sends.some((s) => !s.isTest), href: "/send", title: "Send your first summary", hint: "Add recipients, look at the preview and email the month with the PDFs attached." },
   ];
   const next = steps.find((s) => !s.done);
   const last = runs[0];

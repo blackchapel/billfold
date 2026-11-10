@@ -1,6 +1,6 @@
 import type { ConnectionConfig, ConnectionKind, GoogleKind } from "@/domain/value-objects/connection";
 import type { MessageSummary } from "@/domain/value-objects/source-rules";
-import type { ConnectionProbe, DriveStore, DriveUploadInput, FetchedMessage, GoogleOAuthClient, MailFetch, MailFetchInput, MailSearch, MailSearchInput, ProbeResult } from "@/domain/ports/services";
+import type { ConnectionProbe, DriveStore, DriveUploadInput, MailSender, OutgoingEmail, FetchedMessage, GoogleOAuthClient, MailFetch, MailFetchInput, MailSearch, MailSearchInput, ProbeResult } from "@/domain/ports/services";
 import { withinWindow } from "./mail-search";
 
 /** Offline stand-ins used only when test mode is on (never in production), so Playwright can run without Google or mail servers. */
@@ -88,9 +88,27 @@ export class StubMailFetch implements MailFetch {
 /** Keeps "uploads" in memory and hands back believable ids and links. Never touches a real Drive. */
 export class StubDriveStore implements DriveStore {
   readonly uploads: { folderPath: string[]; fileName: string; size: number }[] = [];
+  /** A small real PDF, so attachments in test mode are genuine files. */
+  async download(input: { secretJson: string; fileId: string; maxBytes: number }) {
+    return billPdf([`Stub copy of ${input.fileId}`, "Total amount due: Rs 1.00"]);
+  }
   async upload(input: DriveUploadInput) {
     this.uploads.push({ folderPath: input.folderPath, fileName: input.fileName, size: input.bytes.byteLength });
     const id = `test-file-${this.uploads.length}`;
     return { fileId: id, folderId: `test-folder-${input.folderPath.join("-")}`, webViewLink: `https://drive.test/file/${id}` };
+  }
+}
+
+export interface RecordedEmail { to: string; toName: string; from: string; subject: string; text: string; html: string; attachments: { filename: string; size: number }[] }
+
+/** Collects "sent" emails in memory instead of sending them. An address containing "bounce" is refused, to exercise failures. */
+export class StubMailSender implements MailSender {
+  readonly sent: RecordedEmail[] = [];
+  async send(email: OutgoingEmail) {
+    if (/bounce/i.test(email.to.email)) throw new Error("550 mailbox unavailable (test)");
+    this.sent.push({
+      to: email.to.email, toName: email.to.name, from: email.from, subject: email.subject, text: email.text, html: email.html,
+      attachments: email.attachments.map((a) => ({ filename: a.filename, size: a.bytes.byteLength })),
+    });
   }
 }
