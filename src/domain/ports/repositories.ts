@@ -27,6 +27,7 @@ import type {
   SendCounts,
   SendItemRecord,
   SendRecord,
+  SendSummary,
   SendStatus,
   SourceFields,
   SourceRecord,
@@ -167,6 +168,15 @@ export interface BillRepository {
   createManual(orgId: string, bill: NewBill): Promise<BillRecord>;
   find(orgId: string, id: string): Promise<BillRecord | null>;
   list(orgId: string, filter: BillFilter): Promise<BillRecord[]>;
+  /** Bills with these ids (files included), in no particular order. */
+  findMany(orgId: string, ids: string[]): Promise<BillRecord[]>;
+  /** Months that have bills (newest first) and how many bills need a check, from the database's own counting: nothing is loaded. */
+  summary(orgId: string): Promise<{ months: string[]; needsReviewCount: number }>;
+  /**
+   * The bills a report is built from, without their files: every bill from `fromPeriod` on, plus every unpaid bill and every bill that
+   * needs a check whatever its month. That is all the report maths reads, and it stays small however many years of bills pile up.
+   */
+  reportRows(orgId: string, fromPeriod: string): Promise<BillRecord[]>;
   /** The Drive copies with these ids, for attaching to an email. Other orgs' files are never returned. */
   findFiles(orgId: string, fileIds: string[]): Promise<BillFileRecord[]>;
   update(orgId: string, id: string, patch: BillPatch): Promise<BillRecord | null>;
@@ -196,7 +206,7 @@ export interface TemplateRepository {
 export interface SendRepository {
   create(orgId: string, send: NewSend): Promise<SendRecord>;
   find(orgId: string, id: string): Promise<SendRecord | null>;
-  list(orgId: string, limit: number): Promise<SendRecord[]>;
+  list(orgId: string, limit: number): Promise<SendSummary[]>;
   setStatus(orgId: string, id: string, status: SendStatus, finishedAt: Date | null): Promise<void>;
   counts(orgId: string, sendIds: string[]): Promise<Map<string, SendCounts>>;
   /** How many sends this person started since `since`, for the hourly limit. */

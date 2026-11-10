@@ -50,6 +50,13 @@
       "when": 1794334212104,
       "tag": "0006_chubby_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794342721570,
+      "tag": "0007_ordinary_maximus",
+      "breakpoints": true
     }
   ]
 }

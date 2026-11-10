@@ -197,6 +197,12 @@ export class Memory {
       && (!f.needsReview || b.needsReview) && (!f.unpaid || !b.paidAt)
       && (!f.search?.trim() || `${b.billerName}\n${b.sourceName}`.toLowerCase().includes(f.search.trim().toLowerCase()))
       && (f.deleted === "only" ? b.deletedAt !== null : b.deletedAt === null)).map((b) => ({ ...b })),
+    findMany: async (o, ids) => [...this.bills.values()].filter((b) => b.orgId === o && ids.includes(b.id)).map((b) => ({ ...b })),
+    summary: async (o) => {
+      const live = [...this.bills.values()].filter((b) => b.orgId === o && b.deletedAt === null);
+      return { months: [...new Set(live.map((b) => b.periodKey))].sort().reverse(), needsReviewCount: live.filter((b) => b.needsReview).length };
+    },
+    reportRows: async (o, from) => [...this.bills.values()].filter((b) => b.orgId === o && b.deletedAt === null && (b.periodKey >= from || b.paidAt === null || b.needsReview)).map((b) => ({ ...b, files: [] })),
     findFiles: async (o, ids) => [...this.bills.values()].filter((b) => b.orgId === o).flatMap((b) => b.files).filter((f) => ids.includes(f.id)),
     update: async (o, id, patch) => {
       const b = this.bills.get(id);

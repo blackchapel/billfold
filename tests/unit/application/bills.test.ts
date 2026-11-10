@@ -177,6 +177,25 @@ describe("ListBills", () => {
 });
 
 describe("ReportService", () => {
+  it("reads only the window it reports on plus unpaid and flagged bills of any age, and gives the same answer as reading everything", async () => {
+    const w = await world();
+    // Years of settled history that no report on October 2026 should need.
+    for (let i = 0; i < 30; i++) {
+      const bill = await m.billRepo.record(w.org.id, newBill({ periodKey: `${2022 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`, amountMinor: 1_000n, messageKey: `old-${i}` }), file);
+      await w.paid.execute({ actorId: w.owner.id, orgId: w.org.id, billId: bill.id, paid: true });
+    }
+    await m.billRepo.record(w.org.id, newBill({ periodKey: "2023-02", billerName: "Ancient", messageKey: "ancient-unpaid", dueDate: "2023-03-01" }), file); // still owed
+    const asked: string[] = [];
+    const spy = { ...m.billRepo, list: async () => { asked.push("list"); throw new Error("the report must not load every bill"); } };
+    const report = await new ReportService(spy as typeof m.billRepo, m.clock).build(w.org.id, null);
+    expect(asked).toEqual([]);
+    expect(report.overdue.map((b) => b.billerName)).toContain("Ancient"); // an old unpaid bill is still overdue
+    expect(report.trend).toHaveLength(12);
+    expect(report.trend.at(-1)).toMatchObject({ periodKey: "2026-10", count: 2 });
+    expect(report.monthsWithBills).toContain("2022-01"); // every month that has bills can be opened
+    expect(report.insights.some((i) => /needs? a quick check/.test(i.text))).toBe(true); // the flagged scan still counts
+  });
+
   it("builds the month, the 12-month trend, the biller table, overdue and upcoming bills and the insights from live bills", async () => {
     const w = await world();
     await m.billRepo.record(w.org.id, newBill({ periodKey: "2026-09", amountMinor: 100_000n, messageKey: "jio-sep", dueDate: "2026-10-12" }), file); // old and unpaid: overdue

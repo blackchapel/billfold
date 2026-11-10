@@ -36,6 +36,10 @@ export const bills = pgTable("bills", {
   uniqueIndex("bills_org_message_key_uq").on(t.orgId, t.messageKey),
   index("bills_org_period_idx").on(t.orgId, t.periodKey),
   index("bills_org_due_idx").on(t.orgId, t.dueDate),
+  // Match the page queries: month lists and counts only look at bills that are not deleted, and the reports also pick out the
+  // unpaid and the flagged ones from every month. Small partial indexes keep those lookups fast however many old bills exist.
+  index("bills_org_live_period_idx").on(t.orgId, t.periodKey).where(sql`${t.deletedAt} is null`),
+  index("bills_org_attention_idx").on(t.orgId).where(sql`${t.deletedAt} is null and (${t.paidAt} is null or ${t.needsReview})`),
   check("bills_period_ck", sql`${t.periodKey} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
   check("bills_confidence_ck", sql`${t.confidence} in ('high','medium','low')`),
   check("bills_method_ck", sql`${t.method} in ('text','gemini','manual')`),

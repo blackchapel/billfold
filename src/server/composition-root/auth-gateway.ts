@@ -31,15 +31,13 @@ export const authGateway = {
   },
 
   async identity(): Promise<AuthIdentity | null> {
-    const { data } = await (await supabaseServer()).auth.getUser();
-    const u = data.user;
-    if (!u?.email) return null;
-    return {
-      id: u.id,
-      email: u.email,
-      name: (u.user_metadata?.full_name as string | undefined) ?? null,
-      avatarUrl: (u.user_metadata?.avatar_url as string | undefined) ?? null,
-    };
+    // getClaims checks the token's signature here, on the server, when the project signs with asymmetric keys (no round trip to
+    // Supabase); otherwise it falls back to asking Supabase, exactly as getUser did. Either way a forged or expired token is refused.
+    const { data } = await (await supabaseServer()).auth.getClaims();
+    const c = data?.claims;
+    if (!c?.sub || !c.email) return null;
+    const meta = (c.user_metadata ?? {}) as { full_name?: string; avatar_url?: string };
+    return { id: c.sub, email: c.email, name: meta.full_name ?? null, avatarUrl: meta.avatar_url ?? null };
   },
 
   async signOut(): Promise<void> {

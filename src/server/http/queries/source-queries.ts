@@ -2,15 +2,16 @@ import "server-only";
 import type { ConnectionRecord, RunConfigRecord, SourceRecord } from "@/domain/ports/records";
 import type { ConnectionOption, RunConfigDto, SourceDto } from "@/types/source";
 import { container } from "../../composition-root/container";
+import { connectionRecords, sourceRecords, runConfigRecords } from "./request-memo";
 
 const toOption = (c: ConnectionRecord): ConnectionOption => ({ id: c.id, label: c.label, account: c.accountEmail });
 
 export async function mailboxOptions(orgId: string): Promise<ConnectionOption[]> {
-  return (await container().listConnections.execute(orgId)).filter((c) => c.kind === "gmail" || c.kind === "imap").map(toOption);
+  return (await connectionRecords(orgId)).filter((c) => c.kind === "gmail" || c.kind === "imap").map(toOption);
 }
 
 export async function driveOptions(orgId: string): Promise<ConnectionOption[]> {
-  return (await container().listConnections.execute(orgId)).filter((c) => c.kind === "google_drive").map(toOption);
+  return (await connectionRecords(orgId)).filter((c) => c.kind === "google_drive").map(toOption);
 }
 
 const toSourceDto = (s: SourceRecord, labels: Map<string, string>): SourceDto => ({
@@ -20,11 +21,11 @@ const toSourceDto = (s: SourceRecord, labels: Map<string, string>): SourceDto =>
 });
 
 async function labelMap(orgId: string) {
-  return new Map((await container().listConnections.execute(orgId)).map((c) => [c.id, c.label]));
+  return new Map((await connectionRecords(orgId)).map((c) => [c.id, c.label]));
 }
 
 export async function listSources(orgId: string): Promise<SourceDto[]> {
-  const [sources, labels] = await Promise.all([container().listSources.execute(orgId), labelMap(orgId)]);
+  const [sources, labels] = await Promise.all([sourceRecords(orgId), labelMap(orgId)]);
   return sources.map((s) => toSourceDto(s, labels));
 }
 
@@ -34,12 +35,12 @@ export async function getSource(orgId: string, id: string): Promise<SourceDto | 
 }
 
 export async function listRunConfigs(orgId: string): Promise<RunConfigDto[]> {
-  const [configs, sources, labels] = await Promise.all([container().listRunConfigs.execute(orgId), container().listSources.execute(orgId), labelMap(orgId)]);
+  const [configs, sources, labels] = await Promise.all([runConfigRecords(orgId), sourceRecords(orgId), labelMap(orgId)]);
   return configs.map((c) => toRunConfigDto(c, sources, labels));
 }
 
 export async function getRunConfig(orgId: string, id: string): Promise<RunConfigDto | null> {
-  const [config, sources, labels] = await Promise.all([container().listRunConfigs.find(orgId, id), container().listSources.execute(orgId), labelMap(orgId)]);
+  const [config, sources, labels] = await Promise.all([container().listRunConfigs.find(orgId, id), sourceRecords(orgId), labelMap(orgId)]);
   return config ? toRunConfigDto(config, sources, labels) : null;
 }
 
@@ -53,5 +54,5 @@ function toRunConfigDto(c: RunConfigRecord, sources: SourceRecord[], labels: Map
 }
 
 export async function sourceOptions(orgId: string): Promise<{ id: string; name: string }[]> {
-  return (await container().listSources.execute(orgId)).map((s) => ({ id: s.id, name: s.name }));
+  return (await sourceRecords(orgId)).map((s) => ({ id: s.id, name: s.name }));
 }

@@ -163,4 +163,5 @@ export class ListBills {
   constructor(private readonly bills: BillRepository) {}
   list(orgId: string, filter: BillFilter): Promise<BillRecord[]> { return this.bills.list(orgId, filter); }
   find(orgId: string, id: string): Promise<BillRecord | null> { return this.bills.find(orgId, id); }
+  summary(orgId: string) { return this.bills.summary(orgId); }
 }

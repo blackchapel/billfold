@@ -1,14 +1,18 @@
-import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, gte, inArray } from "drizzle-orm";
 import type { SendRepository } from "@/domain/ports/repositories";
-import type { NewSend, SendCounts, SendRecord, SendStatus } from "@/domain/ports/records";
+import type { NewSend, SendCounts, SendRecord, SendStatus, SendSummary } from "@/domain/ports/records";
 import type { Db } from "../db/create";
 import { sendItems, sends } from "../db/schema";
 
-const toSend = (r: typeof sends.$inferSelect): SendRecord => ({
-  id: r.id, orgId: r.orgId, periodKey: r.periodKey, templateName: r.templateName, subject: r.subject, bodyHtml: r.bodyHtml, bodyText: r.bodyText,
+type SummaryRow = Omit<typeof sends.$inferSelect, "bodyHtml" | "bodyText">;
+const { bodyHtml: _html, bodyText: _text, ...summaryColumns } = getTableColumns(sends); // eslint-disable-line @typescript-eslint/no-unused-vars
+
+const toSummary = (r: SummaryRow): SendSummary => ({
+  id: r.id, orgId: r.orgId, periodKey: r.periodKey, templateName: r.templateName, subject: r.subject,
   fromConnectionId: r.fromConnectionId, fromAccount: r.fromAccount, attachmentFileIds: r.attachmentFileIds, attachmentBytes: r.attachmentBytes,
   billCount: r.billCount, totalMinor: r.totalMinor, isTest: r.isTest, status: r.status as SendStatus, createdBy: r.createdBy, createdAt: r.createdAt, finishedAt: r.finishedAt,
 });
+const toSend = (r: typeof sends.$inferSelect): SendRecord => ({ ...toSummary(r), bodyHtml: r.bodyHtml, bodyText: r.bodyText });
 
 export class DrizzleSendRepository implements SendRepository {
   constructor(private readonly db: Db) {}
@@ -25,7 +29,7 @@ export class DrizzleSendRepository implements SendRepository {
   }
 
   async list(orgId: string, limit: number) {
-    return (await this.db.select().from(sends).where(eq(sends.orgId, orgId)).orderBy(desc(sends.createdAt)).limit(limit)).map(toSend);
+    return (await this.db.select(summaryColumns).from(sends).where(eq(sends.orgId, orgId)).orderBy(desc(sends.createdAt)).limit(limit)).map(toSummary);
   }
 
   async setStatus(orgId: string, id: string, status: SendStatus, finishedAt: Date | null) {

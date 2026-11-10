@@ -42,11 +42,12 @@ export function parseBillFilter(raw: { period?: string; q?: string; filter?: str
 }
 
 export async function listBills(orgId: string, filter: BillFilter): Promise<BillListDto> {
-  const [rows, everything] = await Promise.all([container().listBills.list(orgId, filter), container().listBills.list(orgId, {})]);
+  // The month list and the "needs a check" count come from the database's own counting, not from loading every bill a second time.
+  const [rows, summary] = await Promise.all([container().listBills.list(orgId, filter), container().listBills.summary(orgId)]);
   return {
     rows: rows.map(toBillRow),
-    months: [...new Set(everything.map((b) => b.periodKey))].sort().reverse(),
-    needsReviewCount: everything.filter((b) => b.needsReview).length,
+    months: summary.months,
+    needsReviewCount: summary.needsReviewCount,
     totalText: money(rows.reduce((t, b) => t + (b.amountMinor ?? 0n), 0n)),
     missingAmounts: rows.filter((b) => b.amountMinor === null).length,
   };
@@ -58,7 +59,7 @@ export async function getBill(orgId: string, id: string) {
 }
 
 export async function needsReviewCount(orgId: string): Promise<number> {
-  return (await container().listBills.list(orgId, { needsReview: true })).length;
+  return (await container().listBills.summary(orgId)).needsReviewCount;
 }
 
 /** Months a bill may be filed under: this month and the 36 before it. */

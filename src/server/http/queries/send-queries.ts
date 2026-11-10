@@ -1,12 +1,13 @@
 import "server-only";
 import { INR } from "@/domain/value-objects/currency";
 import { PLACEHOLDER_HELP, TEMPLATE_PLACEHOLDERS, BUILT_IN_TEMPLATE } from "@/domain/value-objects/email-template";
-import type { SendCounts, SendItemRecord, SendRecord } from "@/domain/ports/records";
+import type { SendCounts, SendItemRecord, SendSummary } from "@/domain/ports/records";
 import { formatMoney } from "@/lib/format-money";
 import type { ComposeOptions, PlaceholderDto, PreviewDto, RecipientDto, SendDetailDto, SendItemDto, SendSummaryDto, TemplateDto } from "@/types/send";
 import type { Composed } from "../../application/send-composer";
 import { MAX_SEND_ATTEMPTS } from "../../application/sends";
 import { container } from "../../composition-root/container";
+import { connectionRecords } from "./request-memo";
 
 export async function listRecipientDtos(orgId: string): Promise<RecipientDto[]> {
   return (await container().listRecipients.execute(orgId)).map((r) => ({ id: r.id, name: r.name, email: r.email }))
@@ -26,11 +27,11 @@ export const builtInTemplate = (): Omit<TemplateDto, "id" | "isDefault"> => ({ .
 
 export async function composeOptions(orgId: string): Promise<ComposeOptions> {
   const c = container();
-  const [bills, templates, recipients, connections] = await Promise.all([
-    c.listBills.list(orgId, {}), listTemplateDtos(orgId), listRecipientDtos(orgId), c.listConnections.execute(orgId),
+  const [summary, templates, recipients, connections] = await Promise.all([
+    c.listBills.summary(orgId), listTemplateDtos(orgId), listRecipientDtos(orgId), connectionRecords(orgId),
   ]);
   return {
-    periods: [...new Set(bills.map((b) => b.periodKey))].sort().reverse(),
+    periods: summary.months,
     templates: templates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault })),
     recipients,
     senders: connections.filter((x) => x.kind === "gmail" || x.kind === "smtp").map((x) => ({ id: x.id, label: x.label, account: x.accountEmail, healthy: x.status === "active" })),
@@ -51,7 +52,7 @@ export const toSendItemDto = (i: SendItemRecord): SendItemDto => ({
   canRetry: i.status === "failed" && i.attempts < MAX_SEND_ATTEMPTS, sentAt: i.sentAt?.toISOString() ?? null,
 });
 
-function summary(send: SendRecord, counts: SendCounts): SendSummaryDto {
+function summary(send: SendSummary, counts: SendCounts): SendSummaryDto {
   return {
     id: send.id, periodKey: send.periodKey, subject: send.subject, status: send.status, isTest: send.isTest, billCount: send.billCount,
     totalText: formatMoney({ minor: send.totalMinor, currency: INR }), fromAccount: send.fromAccount, createdAt: send.createdAt.toISOString(), counts,

@@ -14,8 +14,7 @@ export default async function Overview({ params }: { params: Promise<{ orgSlug: 
   const { orgSlug } = await params;
   const { membership } = await requireOrg(orgSlug);
   const orgId = membership.orgId;
-  const [connections, sources, configs, runs, toCheck] = await Promise.all([listConnections(orgId), listSources(orgId), listRunConfigs(orgId), listRuns(orgId), needsReviewCount(orgId)]);
-  const sends = await listSendSummaries(orgId);
+  const [connections, sources, configs, runs, toCheck, sends] = await Promise.all([listConnections(orgId), listSources(orgId), listRunConfigs(orgId), listRuns(orgId, 1), needsReviewCount(orgId), listSendSummaries(orgId)]);
   const broken = connections.filter((c) => c.status !== "active");
   const steps = [
     { done: connections.some((c) => c.kind === "gmail" || c.kind === "imap") && connections.some((c) => c.kind === "google_drive"), href: "/connections", title: "Connect a mailbox and a Google Drive", hint: "Where bills come from, and where the PDFs are filed." },

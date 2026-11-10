@@ -272,6 +272,9 @@ export interface SendRecord {
   finishedAt: Date | null;
 }
 
+/** A send without its message text: the log lists many sends and only needs facts, not each email's whole HTML. */
+export type SendSummary = Omit<SendRecord, "bodyHtml" | "bodyText">;
+
 export type NewSend = Omit<SendRecord, "id" | "orgId" | "status" | "createdAt" | "finishedAt">;
 
 export interface SendItemRecord {

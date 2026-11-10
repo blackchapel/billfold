@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/format-money";
 import type { BillBriefDto, RunCountsDto, RunDetailDto, RunItemDto, RunSummaryDto, StartRunOptions } from "@/types/run";
 import { StartRun } from "../../application/runs";
 import { container } from "../../composition-root/container";
+import { runConfigRecords } from "./request-memo";
 
 const summary = (run: RunRecord, counts: RunCountsDto): RunSummaryDto => ({
   id: run.id, configName: run.configName, periodKey: run.periodKey, status: run.status,
@@ -31,8 +32,8 @@ export function toItemDto(item: RunItemRecord, bill: BillRecord | null): RunItem
   };
 }
 
-export async function listRuns(orgId: string): Promise<RunSummaryDto[]> {
-  return (await container().listRuns.recent(orgId)).map(({ run, counts }) => summary(run, counts));
+export async function listRuns(orgId: string, limit = 20): Promise<RunSummaryDto[]> {
+  return (await container().listRuns.recent(orgId, limit)).map(({ run, counts }) => summary(run, counts));
 }
 
 export async function getRun(orgId: string, runId: string): Promise<RunDetailDto | null> {
@@ -43,7 +44,7 @@ export async function getRun(orgId: string, runId: string): Promise<RunDetailDto
 
 export async function startRunOptions(orgId: string): Promise<StartRunOptions> {
   const now = new Date();
-  const configs = await container().listRunConfigs.execute(orgId);
+  const configs = await runConfigRecords(orgId);
   return {
     configs: configs.filter((c) => c.sourceIds.length > 0).map((c) => ({ id: c.id, name: c.name, defaultPeriod: resolvePeriod(c.periodMode, now, ORG_UTC_OFFSET_MINUTES).key })),
     periods: StartRun.selectablePeriods(now),
