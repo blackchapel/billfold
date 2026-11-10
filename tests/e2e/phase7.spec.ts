@@ -39,7 +39,7 @@ test("F37 the privacy policy and terms are public, complete and honest about Goo
   await expect(page.getByRole("heading", { name: "Please check the numbers", level: 2 })).toBeVisible();
   await page.getByRole("link", { name: "privacy page" }).click();
   await expect(page).toHaveURL(/\/privacy$/);
-  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Home" }).click();
   await expect(page).toHaveURL(/\/$/);
 });
 
