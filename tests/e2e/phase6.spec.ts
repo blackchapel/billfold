@@ -37,6 +37,7 @@ test("F30 recipients: add (with mistakes), edit and remove", async ({ page }) =>
     await expect(page.locator(`li[data-recipient="${email}"]`)).toBeVisible();
   }
   await page.locator('li[data-recipient="ravi@example.com"]').getByRole("link", { name: "Edit" }).click();
+  await expect(page).toHaveURL(/\/recipients\/[0-9a-f-]{36}$/);
   await page.getByLabel("Name").fill("Ravi Sharma");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page).toHaveURL(/\/recipients$/);
@@ -71,6 +72,7 @@ test("F31 templates: the standard wording, a typo in a placeholder, a new defaul
   await expect(mine.getByText("default", { exact: true })).toBeVisible();
   await expect(li(page, "Standard summary").getByRole("button", { name: "Use this as the default" })).toBeVisible();
   await mine.getByRole("link", { name: "Edit" }).click();
+  await expect(page).toHaveURL(/\/templates\/[0-9a-f-]{36}$/);
   await page.getByLabel("Closing text").fill("Thanks again, {{sender}}");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page).toHaveURL(/\/templates$/);
