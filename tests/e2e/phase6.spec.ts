@@ -107,7 +107,7 @@ test("F32 send: preview, a test to yourself, a real send with one refused addres
   const frame = page.locator('iframe[title="How the email will look"]');
   await expect(frame).toHaveAttribute("sandbox", "");
   await expect(page.frameLocator('iframe[title="How the email will look"]').getByText("Jio").first()).toBeVisible();
-  await page.getByLabel("Wording").selectOption({ label: "Standard summary" }); // changing anything hides the old preview
+  await page.getByLabel("Wording").selectOption({ label: "Short note" }); // changing anything hides the old preview
   await expect(page.getByRole("region", { name: "Preview" })).toHaveCount(0);
 
   // A real send needs somebody chosen; a test goes only to the person pressing the button.
@@ -118,7 +118,7 @@ test("F32 send: preview, a test to yourself, a real send with one refused addres
   let sent = await outbox(page);
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({ to: "owner@example.com" });
-  expect(sent[0]?.subject).toMatch(/^\[Test\] Bills for /);
+  expect(sent[0]?.subject).toMatch(/^\[Test\] Family bills for /);
   expect(sent[0]?.attachments.length).toBeGreaterThan(0);
   expect(sent[0]?.attachments.every((a) => a.filename.endsWith(".pdf") && a.size > 0)).toBe(true);
   expect(sent[0]?.html).not.toContain("<script");
