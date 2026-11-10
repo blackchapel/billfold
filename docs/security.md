@@ -27,6 +27,8 @@
   or the audit log (tests assert this). Items store only masked subjects and short fixed messages; provider errors are logged as code/type, not shown. With `GEMINI_API_KEY`, only the unlocked PDF plus a fixed instruction is sent to Gemini (never
   passwords, subjects, addresses or tokens); the free tier may use content to improve Google's products, so the key is optional and off by default. Run actions need `runs.execute`; any member may read runs and bills.
   Items are claimed with row locks so two screens cannot file the same email, and every filed email has a unique key per org.
+- **Bills and reports.** Reading bills, reports and the CSV needs only org membership; changing bills (edit, check, add, paid, delete, restore) needs `bills.edit`, checked on the server for every action and again on the pages. Edits are validated (amounts parsed as exact decimals, real dates, months not in the future)
+  and every change is in the audit log with who and what (never secrets). The CSV is `private, no-store`, built on the server for the caller's own org only, and neutralises spreadsheet formulas (`=`, `+`, `-`, `@`, tab, CR). Search input is escaped so `%` and `_` cannot act as wildcards.
 - **Test mode** (`BILLFOLD_TEST_MODE=1`) fakes sign-in. It is inert when `NODE_ENV=production` or `VERCEL_ENV` is set.
 
 Threat model summary: stolen anon key (RLS denies), stolen invite (hashed, expiring, capped, allowlist still required),

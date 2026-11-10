@@ -94,13 +94,15 @@ Local test Postgres in this sandbox: `/var/lib/pgtest/data` on port 54329 (db `b
 - **Phase 3 (sources and run configs) done** (ADR 0007): `sources`, `run_configs`, `run_config_sources` tables; sources = mailbox + sender/subject/attachment rules + PDF password mode
   (none / saved static / Jio-style brackets / custom pattern); source tester (dry run on the real mailbox, Gmail API or IMAP, headers only); run configs = sources + mandatory Drive + folder + default month.
   Pages: Sources, Run configs. `matchesMessage`, `extractSubjectPassword`, `resolvePeriod` are the domain functions Phase 4 reuses.
-- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F23 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
+- Test coverage: unit + integration (local Postgres), and `pnpm verify:ui` flows F1-F29 + V1 (`docs/qa/flows.md`). Google round trips, the Gmail API (search + fetch), Drive uploads and Gemini are only exercised with fakes/mocked HTTP
   in the sandbox (IMAP, SMTP and PDF encryption are tested against real local servers / generated files); the owner has tested connections on billfold-dev, so run the "manual checks" in `docs/qa/flows.md` for Gmail search once Gmail (project B) is connected.
 - **Phase 4 (runs / filing pipeline) done** (ADR 0008): `runs`, `run_items`, `bills`, `bill_files` tables. `StartRun` plans a month (search only), `ProcessNextItem` files one item per call (claim with `FOR UPDATE SKIP LOCKED`,
   download Gmail/IMAP, unlock PDF with `@cantoo/pdf-lib` (RC4/AES all tested), email-body bills become text PDFs, amount read by the text reader or Gemini, upload to Drive folder/month/source, bill + file saved).
   Run page loops the server action until done; retry, pause, cancel; already-filed emails are skipped in later runs. Overview has a getting-started checklist and the latest run.
   Navigation fix: `currentUser`/`requireOrg` are per-request cached for pages (`requireOrgFresh` in actions), loading/error boundaries, `NavLink` pending dot, last-org write in `after()`.
-- Not yet built: review/correct flagged bills, reports/insights (P5), sending (P6), legal pages/landing polish (P7). Bills flagged `needs_review` are only visible on the run page until Phase 5.
+- **Phase 5 (bills and reports) done** (ADR 0009): Bills page (filters, search, review queue, edit/check, add by hand, paid, soft delete/restore, CSV export route `/[orgSlug]/bills/export`) and Reports page (month total, 12-month column chart per the dataviz skill,
+  by-biller table, insights, overdue/due-soon). Pure maths in `domain/value-objects/bill-reports.ts`; `ReportService`; migration `0005` adds `paid_at`, `reviewed_*`, `deleted_*` to `bills` and the `manual` method. Overview shows a "bills need a check" notice.
+- Not yet built: sending summaries by email with the PDFs attached, recipients and templates (P6), legal pages/landing polish (P7).
 - Known gaps: brand deliverables so far are SVG mark + icon only (PNG/OG/email wordmark due Phase 7); `/privacy` and `/terms` are linked but not written yet (Phase 7).
 
 ## Gotchas

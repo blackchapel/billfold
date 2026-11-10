@@ -158,6 +158,10 @@ Tables are created by running the SQL files in `drizzle/`. From your phone, use 
 To use Gemini: create a key at aistudio.google.com, add `GEMINI_API_KEY` in Vercel (and optionally `GEMINI_MODEL`, default `gemini-2.5-flash`), redeploy. **Before you do:** on Google's free tier, content you send may be used to improve
 Google's products. Billfold sends only the unlocked bill PDF, but bills are personal. Use a paid key, or leave the key unset, if that is not acceptable.
 
+5. **Bills**: everything the runs filed. Bills the reader was unsure about (a scan, no amount found) are marked *Needs a check*; open one, compare it with the PDF (the *Open in Drive* link), correct the amount and tick
+   *I have checked this bill*. Use **Add a bill** for anything that never came by email. Mark bills paid so the due-date warnings stay accurate; **Download CSV** gives you the list for a spreadsheet.
+6. **Reports**: the total for a month, the last twelve months as a chart, a table by biller with the change since last month, and what is overdue or due this week. Overdue and due-soon lists only count bills that have a due date and are not marked paid.
+
 Things to know: a connection that a source or run configuration uses cannot be removed until those are changed or deleted. Mail read over IMAP is taken from the INBOX only.
 Gmail connections made while project B is in *Testing* mode expire after 7 days: the Overview page then shows "needs attention" and **Reconnect** on the Connections page fixes it.
 A daily check (second cron job in `vercel.json`) notices expiries by itself.
