@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { UserRepository } from "@/domain/ports/repositories";
 import type { UserRecord } from "@/domain/ports/records";
 import type { Db } from "../db/create";
@@ -26,7 +26,8 @@ export class DrizzleUserRepository implements UserRepository {
   }
 
   async setLastActiveOrg(userId: string, orgId: string) {
-    await this.db.update(users).set({ lastActiveOrgId: orgId }).where(eq(users.id, userId));
+    // Runs after every page view, so it must not write when nothing changed (a write is a row lock, a new row version and a log entry).
+    await this.db.update(users).set({ lastActiveOrgId: orgId }).where(and(eq(users.id, userId), sql`${users.lastActiveOrgId} is distinct from ${orgId}`));
   }
 
   async listAll() {

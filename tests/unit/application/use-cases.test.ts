@@ -5,6 +5,10 @@ import { AuthorizationService } from "@/server/application/authorization";
 import { CreateOrg } from "@/server/application/create-org";
 import { AcceptInvite, CreateInvite } from "@/server/application/invites";
 import { ChangeMemberRole, RemoveMember } from "@/server/application/members";
+import { CheckAllConnections } from "@/server/application/connection-health";
+import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "@/server/application/connections";
+import { CompleteGoogleConnect } from "@/server/application/google-connect";
+import { DeleteOrg, RenameOrg, TransferOwnership } from "@/server/application/org-admin";
 import { SignInGate } from "@/server/application/sign-in-gate";
 import { Memory } from "../../fakes/memory";
 
@@ -141,5 +145,188 @@ describe("allowlist management", () => {
     await uc.add({ actorId: "x", isSuperAdmin: true, email: " A@Example.com ", note: null });
     expect(m.allowed.has("a@example.com")).toBe(true);
     await expectCode(uc.add({ actorId: "x", isSuperAdmin: true, email: "nope", note: null }), "validation");
+  });
+});
+
+describe("org admin", () => {
+  async function setup() {
+    const owner = m.addUser("o@example.com");
+    const other = m.addUser("b@example.com");
+    const org = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Home", defaultCurrency: "INR" });
+    await m.memberRepo.add(org.id, other.id, "admin");
+    return { owner, other, org };
+  }
+  it("lets an admin rename but nobody outside the org", async () => {
+    const { other, org } = await setup();
+    await new RenameOrg(m.orgRepo, authz(), m.auditRepo).execute({ actorId: other.id, orgId: org.id, name: "  Family  " });
+    expect(m.orgs.get(org.id)?.name).toBe("Family");
+    const stranger = m.addUser("s@example.com");
+    await expectCode(new RenameOrg(m.orgRepo, authz(), m.auditRepo).execute({ actorId: stranger.id, orgId: org.id, name: "Mine" }), "not_found");
+  });
+  it("transfers ownership, demoting the old owner to admin", async () => {
+    const { owner, other, org } = await setup();
+    const uc = new TransferOwnership(m.memberRepo, authz(), m.auditRepo);
+    await expectCode(uc.execute({ actorId: other.id, orgId: org.id, newOwnerId: owner.id }), "forbidden");
+    await uc.execute({ actorId: owner.id, orgId: org.id, newOwnerId: other.id });
+    expect(m.members.find((x) => x.userId === other.id)?.role).toBe("owner");
+    expect(m.members.find((x) => x.userId === owner.id)?.role).toBe("admin");
+  });
+  it("deletes only for the owner and only with the exact address typed", async () => {
+    const { owner, other, org } = await setup();
+    const uc = new DeleteOrg(m.orgRepo, authz(), m.auditRepo);
+    await expectCode(uc.execute({ actorId: other.id, orgId: org.id, slug: org.slug, confirmSlug: org.slug }), "forbidden");
+    await expectCode(uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: "nope" }), "validation");
+    await uc.execute({ actorId: owner.id, orgId: org.id, slug: org.slug, confirmSlug: org.slug });
+    expect(m.orgs.has(org.id)).toBe(false);
+  });
+});
+
+describe("connections", () => {
+  const mail = (actorId: string, orgId: string, over: Partial<Parameters<AddMailAccount["execute"]>[0]> = {}) => ({
+    actorId, orgId, kind: "imap" as const, label: "", host: "IMAP.Example.com", port: 993, secure: true, username: "Bills@Example.com", password: "app-password-1", ...over,
+  });
+  async function setup() {
+    const owner = m.addUser("o@example.com");
+    const viewer = m.addUser("v@example.com");
+    const org = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Home", defaultCurrency: "INR" });
+    await m.memberRepo.add(org.id, viewer.id, "viewer");
+    const add = new AddMailAccount(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock, m.auditRepo);
+    return { owner, viewer, org, add };
+  }
+
+  it("tests the login first, then stores the password encrypted and never in plaintext", async () => {
+    const { owner, org, add } = await setup();
+    const c = await add.execute(mail(owner.id, org.id));
+    expect(c).toMatchObject({ kind: "imap", accountEmail: "bills@example.com", label: "bills@example.com", config: { host: "imap.example.com", port: 993 } });
+    const stored = m.connections.get(c.id)?.secret ?? "";
+    expect(stored).not.toContain("app-password-1");
+    expect(await m.secretBox.decrypt(org.id, stored)).toContain("app-password-1");
+    expect(JSON.stringify(m.audit)).not.toContain("app-password-1");
+    expect(m.connections.get(c.id)?.status).toBe("active");
+  });
+  it("refuses to save a login that does not work and shows the probe's safe message", async () => {
+    const { owner, org, add } = await setup();
+    m.probeResult = { ok: false, message: "The server rejected the username or app password." };
+    await expect(add.execute(mail(owner.id, org.id))).rejects.toThrow("rejected the username");
+    expect(m.connections.size).toBe(0);
+  });
+  it("only people with connections.manage may add, test or remove; non-members see not_found", async () => {
+    const { owner, viewer, org, add } = await setup();
+    await expectCode(add.execute(mail(viewer.id, org.id)), "forbidden");
+    const stranger = m.addUser("s@example.com");
+    await expectCode(add.execute(mail(stranger.id, org.id)), "not_found");
+    const c = await add.execute(mail(owner.id, org.id));
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
+    await expectCode(new TestConnection(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock).execute({ actorId: viewer.id, orgId: org.id, connectionId: c.id }), "forbidden");
+  });
+  it("rejects a duplicate account", async () => {
+    const { owner, org, add } = await setup();
+    await add.execute(mail(owner.id, org.id));
+    await expectCode(add.execute(mail(owner.id, org.id)), "conflict");
+  });
+  it("marks a connection as needing attention when a re-test fails, and healthy again when it passes", async () => {
+    const { owner, org, add } = await setup();
+    const c = await add.execute(mail(owner.id, org.id));
+    const test = new TestConnection(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock);
+    m.probeResult = { ok: false, message: "The server rejected the username or app password." };
+    await test.execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.get(c.id)).toMatchObject({ status: "needs_attention", lastError: "The server rejected the username or app password." });
+    m.probeResult = { ok: true, message: "ok" };
+    await test.execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.get(c.id)).toMatchObject({ status: "active", lastError: null });
+    expect(m.probed.at(-1)?.secretJson).toContain("app-password-1"); // the probe got the decrypted secret
+  });
+  it("lists and removes within the org only", async () => {
+    const { owner, org, add } = await setup();
+    const other = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Work", defaultCurrency: "INR" });
+    const c = await add.execute(mail(owner.id, org.id));
+    expect(await new ListConnections(m.connectionRepo).execute(other.id)).toEqual([]);
+    await expectCode(new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: other.id, connectionId: c.id }), "not_found");
+    await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: org.id, connectionId: c.id });
+    expect(m.connections.size).toBe(0);
+  });
+  it("stores a Google refresh token sealed, and reconnecting replaces it instead of duplicating", async () => {
+    const { owner, org } = await setup();
+    const uc = new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo);
+    const first = await uc.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c1", redirectUri: "https://app/cb" });
+    expect(first).toMatchObject({ kind: "google_drive", accountEmail: "drive@example.com" });
+    expect(m.connections.get(first.id)?.secret).not.toContain("refresh-1");
+    m.googleAccount = { refreshToken: "refresh-2", accountEmail: "drive@example.com" };
+    await uc.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c2", redirectUri: "https://app/cb" });
+    expect(m.connections.size).toBe(1);
+    expect(await m.secretBox.decrypt(org.id, m.connections.get(first.id)?.secret ?? "")).toContain("refresh-2");
+  });
+});
+
+describe("connections: reconnect, password update, revoke and health sweep", () => {
+  async function setup() {
+    const owner = m.addUser("o@example.com");
+    const viewer = m.addUser("v@example.com");
+    const org = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Home", defaultCurrency: "INR" });
+    await m.memberRepo.add(org.id, viewer.id, "viewer");
+    const add = new AddMailAccount(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock, m.auditRepo);
+    const mailbox = await add.execute({ actorId: owner.id, orgId: org.id, kind: "imap", label: "", host: "imap.example.com", port: 993, secure: true, username: "bills@example.com", password: "old-password" });
+    return { owner, viewer, org, mailbox };
+  }
+  const update = () => new UpdateMailPassword(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock, m.auditRepo);
+
+  it("updates an app password only after the new one logs in, and clears the error state", async () => {
+    const { owner, org, mailbox } = await setup();
+    m.connections.get(mailbox.id)!.status = "needs_attention";
+    m.probeResult = { ok: false, message: "The server rejected the username or app password." };
+    await expect(update().execute({ actorId: owner.id, orgId: org.id, connectionId: mailbox.id, password: "typo" })).rejects.toThrow("rejected");
+    expect(await m.secretBox.decrypt(org.id, m.connections.get(mailbox.id)?.secret ?? "")).toContain("old-password");
+    m.probeResult = { ok: true, message: "ok" };
+    await update().execute({ actorId: owner.id, orgId: org.id, connectionId: mailbox.id, password: "new-password" });
+    const stored = m.connections.get(mailbox.id);
+    expect(await m.secretBox.decrypt(org.id, stored?.secret ?? "")).toContain("new-password");
+    expect(stored).toMatchObject({ status: "active", lastError: null });
+    expect(JSON.stringify(m.audit)).not.toContain("new-password");
+  });
+  it("blocks password updates for viewers and for Google accounts", async () => {
+    const { owner, viewer, org, mailbox } = await setup();
+    await expectCode(update().execute({ actorId: viewer.id, orgId: org.id, connectionId: mailbox.id, password: "x" }), "forbidden");
+    const g = await new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo)
+      .execute({ actorId: owner.id, orgId: org.id, kind: "gmail", code: "c", redirectUri: "r" });
+    await expectCode(update().execute({ actorId: owner.id, orgId: org.id, connectionId: g.id, password: "x" }), "validation");
+  });
+  it("revokes the Google grant when a Google connection is removed, and still removes if Google is unreachable", async () => {
+    const { owner, org } = await setup();
+    const connect = new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo);
+    const remove = new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage);
+    const a = await connect.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c", redirectUri: "r" });
+    expect(await remove.execute({ actorId: owner.id, orgId: org.id, connectionId: a.id })).toEqual({ revoked: true });
+    expect(m.revoked).toEqual(["refresh-1"]);
+    m.googleAccount = { refreshToken: "refresh-2", accountEmail: "other@example.com" };
+    const b = await connect.execute({ actorId: owner.id, orgId: org.id, kind: "google_drive", code: "c", redirectUri: "r" });
+    m.revokeFails = true;
+    expect(await remove.execute({ actorId: owner.id, orgId: org.id, connectionId: b.id })).toEqual({ revoked: false });
+    expect(m.connections.has(b.id)).toBe(false);
+  });
+  it("does not try to revoke mail accounts", async () => {
+    const { owner, org, mailbox } = await setup();
+    const out = await new RemoveConnection(m.connectionRepo, authz(), m.auditRepo, m.secretBox, m.google, m.usage).execute({ actorId: owner.id, orgId: org.id, connectionId: mailbox.id });
+    expect(out.revoked).toBe(false);
+    expect(m.revoked).toEqual([]);
+  });
+  it("the daily sweep re-checks every org's connections, flags failures and stops at its time budget", async () => {
+    const { owner, org } = await setup();
+    const other = await new CreateOrg(m.orgRepo, m.userRepo, m.auditRepo).execute({ userId: owner.id, name: "Work", defaultCurrency: "INR" });
+    await new AddMailAccount(m.connectionRepo, authz(), m.secretBox, m.probe, m.clock, m.auditRepo)
+      .execute({ actorId: owner.id, orgId: other.id, kind: "smtp", label: "", host: "smtp.example.com", port: 465, secure: true, username: "send@example.com", password: "pw" });
+    const sweep = (budget?: number) => new CheckAllConnections(m.orgRepo, m.connectionRepo, m.secretBox, m.probe, m.clock, budget).execute();
+    expect(await sweep()).toEqual({ checked: 2, failing: 0, skipped: 0 });
+    m.probeResult = { ok: false, message: "Google access was revoked or expired. Reconnect this account." };
+    expect(await sweep()).toEqual({ checked: 2, failing: 2, skipped: 0 });
+    expect([...m.connections.values()].every((c) => c.status === "needs_attention" && c.lastError?.includes("Reconnect"))).toBe(true);
+    expect(org.id).not.toBe(other.id);
+    expect(await sweep(0)).toEqual({ checked: 0, failing: 0, skipped: 2 });
+  });
+  it("the sweep survives unreadable stored secrets", async () => {
+    const { mailbox } = await setup();
+    m.connections.get(mailbox.id)!.secret = "garbage";
+    const out = await new CheckAllConnections(m.orgRepo, m.connectionRepo, { encrypt: m.secretBox.encrypt, decrypt: async () => { throw new Error("bad key"); } }, m.probe, m.clock).execute();
+    expect(out).toEqual({ checked: 1, failing: 1, skipped: 0 });
+    expect(m.connections.get(mailbox.id)?.lastError).toMatch(/could not be read/);
   });
 });

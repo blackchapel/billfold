@@ -15,6 +15,55 @@
       "when": 1794299661934,
       "tag": "0001_rls_and_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794313932603,
+      "tag": "0002_fearless_winter_soldier",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794315975733,
+      "tag": "0003_rich_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794319613846,
+      "tag": "0004_steady_leper_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794323048783,
+      "tag": "0005_volatile_excalibur",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794334212104,
+      "tag": "0006_chubby_master_mold",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794342721570,
+      "tag": "0007_ordinary_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794345271899,
+      "tag": "0008_next_skin",
+      "breakpoints": true
     }
   ]
 }

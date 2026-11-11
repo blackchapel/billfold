@@ -9,6 +9,20 @@ const schema = z.object({
   SUPER_ADMIN_EMAILS: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().url(),
   CRON_SECRET: z.string().min(16).optional(),
+  // Google project A (verified: login + Drive) and project B (unverified: Gmail). Optional until the owner creates them.
+  // Optional: without a key, bills are read by the built-in text reader and nothing leaves Billfold.
+  // Optional shared cache (Upstash Redis over HTTPS). Without both, nothing is cached and the app works exactly as before.
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(10).optional(),
+  GEMINI_API_KEY: z.string().min(10).optional(),
+  // Gemini reads bill PDFs only when the operator has also confirmed (with 1) that the Gemini account is one whose terms say content is NOT used to
+  // train Google's models. The privacy policy promises this, and Gmail-derived data may not be used to train models (Google's Limited Use rules).
+  GEMINI_NO_TRAINING_CONFIRMED: z.string().optional(), // only the exact value 1 counts; anything else leaves Gemini off
+  GEMINI_MODEL: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,60}$/i).optional(),
+  GOOGLE_A_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_A_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_B_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_B_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -29,4 +43,10 @@ export function env(): Env {
 
 export function superAdminEmails(): string[] {
   return env().SUPER_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+}
+
+export function googleProjects(): { drive: { clientId: string; clientSecret: string } | null; gmail: { clientId: string; clientSecret: string } | null } {
+  const e = env();
+  const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null);
+  return { drive: pair(e.GOOGLE_A_CLIENT_ID, e.GOOGLE_A_CLIENT_SECRET), gmail: pair(e.GOOGLE_B_CLIENT_ID, e.GOOGLE_B_CLIENT_SECRET) };
 }

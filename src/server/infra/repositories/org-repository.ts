@@ -59,4 +59,15 @@ export class DrizzleOrgRepository implements OrgRepository {
   async listAll() {
     return (await this.db.select().from(orgs).where(isNull(orgs.deletedAt)).orderBy(orgs.name)).map(toOrg);
   }
+
+  async rename(orgId: string, name: string) {
+    await this.db.update(orgs).set({ name }).where(eq(orgs.id, orgId));
+  }
+
+  async softDeleteAndShred(orgId: string) {
+    await this.db.transaction(async (tx) => {
+      await tx.update(orgs).set({ deletedAt: new Date() }).where(eq(orgs.id, orgId));
+      await tx.delete(orgKeys).where(eq(orgKeys.orgId, orgId));
+    });
+  }
 }

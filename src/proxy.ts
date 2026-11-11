@@ -1,20 +1,27 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Keeps the Supabase session cookie fresh. Authorisation itself happens in server code, not here. */
+/** Keeps the Supabase session fresh. Authorisation itself happens in server code, not here. */
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next({ request });
+  let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key || process.env.BILLFOLD_TEST_MODE === "1") return response;
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (list) => list.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
+      setAll: (cookiesToSet, headers) => {
+        // Refreshed cookies must reach both the page being rendered (request) and the browser (response),
+        // and the cache headers keep a CDN from storing a response that carries a session cookie.
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+      },
     },
   });
-  await supabase.auth.getUser();
+  await supabase.auth.getClaims(); // refreshes the session when it is about to expire; verifies locally when it can
   return response;
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"] };
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|api/cron).*)"] };

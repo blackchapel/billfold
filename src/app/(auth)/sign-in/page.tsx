@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -18,6 +19,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
       <p className="text-sm text-muted">Billfold is invite-only. Use the Google account that was approved for you.</p>
       {error && <p role="alert" className="text-sm text-danger">We could not sign you in. Please try again.</p>}
       <form action={signInWithGoogle}><Button type="submit" className="w-full">Continue with Google</Button></form>
+      <p className="text-xs text-muted">By signing in you agree to the <Link href="/terms" className="underline underline-offset-4">terms</Link>. See the <Link href="/privacy" className="underline underline-offset-4">privacy page</Link> for what Billfold keeps.</p>
       {authGateway.isTestMode() && (
         <form action={signInAsTestUser} className="flex flex-col gap-3 rounded-md border border-dashed border-line p-4">
           <p className="text-xs uppercase tracking-wide text-muted">Test mode</p>

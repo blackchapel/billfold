@@ -1,3 +1,7 @@
 {
-  "crons": [{ "path": "/api/health", "schedule": "17 4 * * *" }]
+  "regions": ["bom1"],
+  "crons": [
+    { "path": "/api/health", "schedule": "17 4 * * *" },
+    { "path": "/api/cron/connections", "schedule": "47 4 * * *" }
+  ]
 }

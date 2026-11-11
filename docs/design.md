@@ -31,6 +31,13 @@ Controls are at least 40px tall (44px for primary mobile actions).
 - Forms: label above field, hint below, errors in `role="alert"`.
 - Charts (later): single colour, thin strokes, no gridline clutter.
 
+## Loading and feedback
+Every page has a `loading.tsx` skeleton (`components/features/shell/page-skeleton.tsx`): grey bars shaped and sized like the content they stand in for (title, text lines, buttons, list rows, inputs), each a `.skeleton` with **its own** soft highlight sweeping left to right *inside* the bar, clipped to the bar's shape, while the gaps between bars stay still. All bars share one duration and start together, so the sweeps line up (about 1.6 s, with a short rest). The highlight is the single place a gradient is allowed, and only inside a skeleton bar. It is a `::after` moved with `transform` only, so it runs on the graphics card without repainting; never animate `background-position`, opacity or size, and never lay one overlay across several bars (that reads as a glare over the page, not bars shimmering). Keep the highlight only a little lighter than the bar: a near-white highlight turns light-mode bars into the page colour. With reduced motion the highlight is hidden and the bars are still. Links that open a page use `LinkButton` / `TextLink`, which show a small turning ring at once and a "still loading" note after six seconds. `prefers-reduced-motion` stops all of it.
+
+## Brand files
+One mark (a green rounded square with an envelope outline). `src/app/icon.svg` is the source; `scripts/make-brand-assets.mts` draws `public/icon-192.png`, `public/icon-512.png`, `src/app/apple-icon.png` (full square, 180px) and `src/app/opengraph-image.png` (1200x630, paper background, serif headline, green bar). Rerun the script and commit the output only when the brand changes.
+In email the wordmark is styled text (never an image). Public pages (`/`, `/privacy`, `/terms`) use the same paper/ink look, one column, numbered list instead of cards.
+
 ## Do / Don't
 Do: left-align text, use the serif for page titles, show empty states that say what happens next.
 Don't: gradients, glass, glows, emoji as icons, identical card grids, big rounded cards, decorative illustrations.
