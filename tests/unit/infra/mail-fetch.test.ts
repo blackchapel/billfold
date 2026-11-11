@@ -7,7 +7,7 @@ import type { GoogleOAuthClient, MailFetchInput } from "@/domain/ports/services"
 
 const pdf = readFileSync("tests/fixtures/pdf/plain.pdf");
 const google: GoogleOAuthClient = {
-  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }),
+  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }),
   accessToken: async (_k, rt) => `access-for-${rt}`, revoke: async () => undefined,
 };
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");

@@ -8,6 +8,8 @@ import { niceTicks } from "@/lib/chart";
 import { periodLabel } from "@/constants/runs";
 import type { BillFilterChoice, BillListDto, BillRowDto, ReportDto } from "@/types/bill";
 import { container } from "../../composition-root/container";
+import { cachedRead } from "./cached";
+import { billSummary } from "./request-memo";
 
 const money = (minor: bigint) => formatMoney({ minor, currency: INR });
 
@@ -42,11 +44,12 @@ export function parseBillFilter(raw: { period?: string; q?: string; filter?: str
 }
 
 export async function listBills(orgId: string, filter: BillFilter): Promise<BillListDto> {
-  const [rows, everything] = await Promise.all([container().listBills.list(orgId, filter), container().listBills.list(orgId, {})]);
+  // The month list and the "needs a check" count come from the database's own counting, not from loading every bill a second time.
+  const [rows, summary] = await Promise.all([cachedRead(orgId, "bills", ["bills"], filter, () => container().listBills.list(orgId, filter)), billSummary(orgId)]);
   return {
     rows: rows.map(toBillRow),
-    months: [...new Set(everything.map((b) => b.periodKey))].sort().reverse(),
-    needsReviewCount: everything.filter((b) => b.needsReview).length,
+    months: summary.months,
+    needsReviewCount: summary.needsReviewCount,
     totalText: money(rows.reduce((t, b) => t + (b.amountMinor ?? 0n), 0n)),
     missingAmounts: rows.filter((b) => b.amountMinor === null).length,
   };
@@ -58,7 +61,7 @@ export async function getBill(orgId: string, id: string) {
 }
 
 export async function needsReviewCount(orgId: string): Promise<number> {
-  return (await container().listBills.list(orgId, { needsReview: true })).length;
+  return (await billSummary(orgId)).needsReviewCount;
 }
 
 /** Months a bill may be filed under: this month and the 36 before it. */
@@ -70,7 +73,9 @@ export function billPeriodChoices(now = new Date()): string[] {
 }
 
 export async function getReport(orgId: string, requestedPeriod: string | null): Promise<ReportDto> {
-  const r = await container().reports.build(orgId, requestedPeriod && isPeriodKey(requestedPeriod) ? requestedPeriod : null);
+  const asked = requestedPeriod && isPeriodKey(requestedPeriod) ? requestedPeriod : null;
+  const day = new Date(Date.now() + ORG_UTC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10); // "overdue" and "this month" change with the date, so the date is part of the key
+  const r = await cachedRead(orgId, "report", ["bills"], { asked, day }, () => container().reports.build(orgId, asked));
   const trend = r.trend.map((p) => ({ key: p.periodKey, label: periodLabel(p.periodKey), value: Number(p.totalMinor) / 100, text: money(p.totalMinor), count: p.count, missing: p.missingAmount }));
   const { max, ticks } = niceTicks(Math.max(...trend.map((t) => t.value), 0));
   const previous = r.trend[r.trend.length - 2];

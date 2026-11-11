@@ -9,4 +9,6 @@ export interface ConnectionDto {
   status: ConnectionStatus;
   lastCheckedAt: Date | null;
   lastError: string | null;
+  /** A Google Drive connected before full Drive access was asked for: it works, but cannot use folders that already exist. */
+  needsMorePermission: boolean;
 }

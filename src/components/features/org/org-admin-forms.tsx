@@ -47,3 +47,15 @@ export function DeleteForm({ action, slug }: { action: A; slug: string }) {
     </form>
   );
 }
+
+/** One button: "Clear the cache". Shows that it worked, or why it did not. */
+export function ClearCacheForm({ action }: { action: (p: ActionState | null) => Promise<ActionState> }) {
+  const { formAction, pending, error, state } = useActionForm<void>(((p: ActionState | null) => action(p)) as never);
+  return (
+    <form action={formAction} className="flex items-center gap-3">
+      <Button type="submit" variant="secondary" disabled={pending}>{pending ? "Clearing…" : "Clear the cache"}</Button>
+      {state?.ok && <span role="status" className="text-sm text-muted">Cleared. Every screen now reads fresh data.</span>}
+      {error && <FormMessage>{error}</FormMessage>}
+    </form>
+  );
+}

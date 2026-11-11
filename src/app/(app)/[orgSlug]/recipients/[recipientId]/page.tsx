@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { RecipientForm } from "@/components/features/recipients/recipient-form";
 import { saveRecipientAction } from "@/server/http/actions/recipient-actions";
 import { listRecipientDtos } from "@/server/http/queries/send-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Edit recipient" };
 
@@ -15,7 +15,7 @@ export default async function EditRecipient({ params }: { params: Promise<{ orgS
   if (!recipient) notFound();
   return (
     <div>
-      <p className="text-sm"><Link href={`/${orgSlug}/recipients`} className="underline underline-offset-4">All recipients</Link></p>
+      <p className="text-sm"><TextLink href={`/${orgSlug}/recipients`}>All recipients</TextLink></p>
       <h1 className="mt-2 font-serif text-4xl">{recipient.name}</h1>
       <div className="mt-6"><RecipientForm key={recipient.id} action={saveRecipientAction.bind(null, orgSlug, recipient.id) as never} recipient={recipient} cancelHref={`/${orgSlug}/recipients`} /></div>
     </div>

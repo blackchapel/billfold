@@ -23,6 +23,17 @@ function parse(form: FormData) {
   });
 }
 
+/** The optional file on the Add a bill form, with the Drive and folder it should go to. Nothing is read when no file was chosen. */
+async function readUpload(form: FormData) {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return undefined;
+  return {
+    driveConnectionId: String(form.get("driveConnectionId") ?? ""),
+    folderTemplate: String(form.get("folderTemplate") ?? ""),
+    file: { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) },
+  };
+}
+
 const refresh = (slug: string) => {
   revalidatePath(`/${slug}/bills`);
   revalidatePath(`/${slug}/reports`);
@@ -36,7 +47,7 @@ export async function saveBillAction(slug: string, billId: string | null, _p: Ac
   const result = await runAction(async () => {
     const base = { actorId: user.id, orgId: membership.orgId, fields: parsed.data };
     if (billId) await container().updateBill.execute({ ...base, billId, markChecked: form.get("markChecked") === "on" });
-    else await container().createManualBill.execute(base);
+    else await container().createManualBill.execute({ ...base, upload: await readUpload(form) });
   });
   if (!result.ok) return result;
   refresh(slug);

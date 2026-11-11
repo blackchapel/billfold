@@ -37,6 +37,8 @@ export class Memory {
   revoked: string[] = [];
   revokeFails = false;
   googleAccount = { refreshToken: "refresh-1", accountEmail: "drive@example.com" };
+  /** What the fake Google says it granted. */
+  googleScopes = ["openid", "email", "https://www.googleapis.com/auth/drive"];
 
   allowlist: AllowlistRepository = {
     isAllowed: async (e) => this.allowed.has(e),
@@ -89,7 +91,7 @@ export class Memory {
     find: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? this.publicView(c) : null; },
     findByAccount: async (o, k, e) => { const c = [...this.connections.values()].find((x) => x.orgId === o && x.kind === k && x.accountEmail === e); return c ? this.publicView(c) : null; },
     findSecret: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? c.secret : null; },
-    replaceSecret: async (o, id, secret) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; } },
+    replaceSecret: async (o, id, secret, config) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; if (config) c.config = config; } },
     recordCheck: async (o, id, r) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.status = r.status; c.lastError = r.error; c.lastCheckedAt = r.at; } },
     remove: async (o, id) => { const c = this.connections.get(id); if (c && c.orgId === o) this.connections.delete(id); },
   };
@@ -102,15 +104,15 @@ export class Memory {
   google: GoogleOAuthClient = {
     isConfigured: () => true,
     authorizeUrl: (k, state) => `https://google.test/auth?k=${k}&state=${state}`,
-    exchangeCode: async () => this.googleAccount,
+    exchangeCode: async () => ({ ...this.googleAccount, scopes: [...this.googleScopes] }),
     accessToken: async () => "access",
     revoke: async (_k, token) => { if (this.revokeFails) throw new Error("offline"); this.revoked.push(token); },
   };
   private sourceView(x: SourceRecord & { cipher: string | null }): SourceRecord {
-    return { id: x.id, orgId: x.orgId, name: x.name, connectionId: x.connectionId, matcher: x.matcher, passwordMode: x.passwordMode, passwordPattern: x.passwordPattern, hasStaticPassword: x.cipher !== null, createdAt: x.createdAt };
+    return { id: x.id, orgId: x.orgId, name: x.name, connectionId: x.connectionId, matcher: x.matcher, passwordMode: x.passwordMode, passwordPattern: x.passwordPattern, hasStaticPassword: x.cipher !== null, fileNameTemplate: x.fileNameTemplate ?? null, folderTemplate: x.folderTemplate ?? null, createdAt: x.createdAt };
   }
   sourceRepo: SourceRepository = {
-    create: async (orgId, _by, f, cipher) => { const r = { id: randomUUID(), orgId, ...f, hasStaticPassword: cipher !== null, createdAt: this.now, cipher }; this.sources.set(r.id, r); return this.sourceView(r); },
+    create: async (orgId, _by, f, cipher) => { const r = { id: randomUUID(), orgId, ...f, fileNameTemplate: f.fileNameTemplate ?? null, folderTemplate: f.folderTemplate ?? null, hasStaticPassword: cipher !== null, createdAt: this.now, cipher }; this.sources.set(r.id, r); return this.sourceView(r); },
     update: async (orgId, id, f, cipher) => { const r = this.sources.get(id); if (!r || r.orgId !== orgId) return null; Object.assign(r, f); if (cipher !== undefined) r.cipher = cipher; return this.sourceView(r); },
     list: async (o) => [...this.sources.values()].filter((x) => x.orgId === o).map((x) => this.sourceView(x)),
     find: async (o, id) => { const r = this.sources.get(id); return r && r.orgId === o ? this.sourceView(r) : null; },
@@ -186,8 +188,8 @@ export class Memory {
       this.bills.set(rec.id, rec);
       return rec;
     },
-    createManual: async (orgId, bill) => {
-      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: [] };
+    createManual: async (orgId, bill, file) => {
+      const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: file ? [{ ...file, id: randomUUID() }] : [] };
       this.bills.set(rec.id, rec);
       return { ...rec };
     },
@@ -197,6 +199,12 @@ export class Memory {
       && (!f.needsReview || b.needsReview) && (!f.unpaid || !b.paidAt)
       && (!f.search?.trim() || `${b.billerName}\n${b.sourceName}`.toLowerCase().includes(f.search.trim().toLowerCase()))
       && (f.deleted === "only" ? b.deletedAt !== null : b.deletedAt === null)).map((b) => ({ ...b })),
+    findMany: async (o, ids) => [...this.bills.values()].filter((b) => b.orgId === o && ids.includes(b.id)).map((b) => ({ ...b })),
+    summary: async (o) => {
+      const live = [...this.bills.values()].filter((b) => b.orgId === o && b.deletedAt === null);
+      return { months: [...new Set(live.map((b) => b.periodKey))].sort().reverse(), needsReviewCount: live.filter((b) => b.needsReview).length };
+    },
+    reportRows: async (o, from) => [...this.bills.values()].filter((b) => b.orgId === o && b.deletedAt === null && (b.periodKey >= from || b.paidAt === null || b.needsReview)).map((b) => ({ ...b, files: [] })),
     findFiles: async (o, ids) => [...this.bills.values()].filter((b) => b.orgId === o).flatMap((b) => b.files).filter((f) => ids.includes(f.id)),
     update: async (o, id, patch) => {
       const b = this.bills.get(id);
@@ -294,7 +302,7 @@ export class Memory {
     upload: async (input) => {
       if (this.uploadFails) throw new Error("Drive request failed: 500 token=SECRET-TOKEN");
       this.uploads.push(input);
-      return { fileId: `file-${this.uploads.length}`, folderId: `folder-${input.folderPath.join("/")}`, webViewLink: `https://drive.test/${this.uploads.length}` };
+      return { fileId: `file-${this.uploads.length}`, folderId: `folder-${input.folderPath.join("/")}`, webViewLink: `https://drive.test/${this.uploads.length}`, name: input.fileName };
     },
   };
   clock: Clock = { now: () => this.now };

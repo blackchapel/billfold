@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { RecipientForm } from "@/components/features/recipients/recipient-form";
 import { ConfirmDelete } from "@/components/features/shared/confirm-delete";
 import { deleteRecipientAction, saveRecipientAction } from "@/server/http/actions/recipient-actions";
 import { listRecipientDtos } from "@/server/http/queries/send-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Recipients" };
 
@@ -15,7 +15,7 @@ export default async function Recipients({ params }: { params: Promise<{ orgSlug
   return (
     <div className="max-w-3xl">
       <h1 className="font-serif text-4xl">Recipients</h1>
-      <p className="mt-2 text-sm text-muted">The people who can receive a monthly summary. Pick who gets each one on the <Link href={`/${orgSlug}/send`} className="underline underline-offset-4">Send</Link> page.</p>
+      <p className="mt-2 text-sm text-muted">The people who can receive a monthly summary. Pick who gets each one on the <TextLink href={`/${orgSlug}/send`}>Send</TextLink> page.</p>
       {canManage && (
         <section className="mt-6" aria-label="Add a recipient">
           <h2 className="font-serif text-2xl">Add a recipient</h2>
@@ -30,7 +30,7 @@ export default async function Recipients({ params }: { params: Promise<{ orgSlug
               <span><span className="font-medium">{r.name}</span><span className="text-muted"> · {r.email}</span></span>
               {canManage && (
                 <span className="flex items-center gap-4">
-                  <Link href={`/${orgSlug}/recipients/${r.id}`} className="underline underline-offset-4">Edit</Link>
+                  <TextLink href={`/${orgSlug}/recipients/${r.id}`}>Edit</TextLink>
                   <ConfirmDelete action={deleteRecipientAction.bind(null, orgSlug, r.id) as never} name={r.name} warning="Emails already sent to them stay in the sent log." />
                 </span>
               )}

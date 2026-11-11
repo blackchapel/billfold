@@ -3,7 +3,7 @@ import { GoogleDriveStore, safeDriveName } from "@/server/infra/providers/drive-
 import type { GoogleOAuthClient } from "@/domain/ports/services";
 
 const google: GoogleOAuthClient = {
-  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }),
+  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }),
   accessToken: async (kind, rt) => `${kind}:${rt}`, revoke: async () => undefined,
 };
 
@@ -59,7 +59,7 @@ describe("GoogleDriveStore", () => {
     expect(d.files).toHaveLength(1);
     expect(d.files[0]).toMatchObject({ name: "2026-11 Jio - bill.pdf", parent: "folder-3", mime: "application/pdf" });
     expect([...(d.files[0]?.bytes ?? [])]).toEqual([0x25, 0x50, 0xff, 0x00, 0x80, 0x0d, 0x0a]); // binary survives the multipart body
-    expect(out).toEqual({ fileId: "file-1", folderId: "folder-3", webViewLink: "https://drive.google.com/file/d/file-1/view?usp=drivesdk" });
+    expect(out).toEqual({ fileId: "file-1", folderId: "folder-3", name: "2026-11 Jio - bill.pdf", webViewLink: "https://drive.google.com/file/d/file-1/view?usp=drivesdk" });
     expect([...d.auth]).toEqual(["Bearer google_drive:rt-d"]);
   });
   it("reuses existing folders on the next upload instead of creating duplicates", async () => {

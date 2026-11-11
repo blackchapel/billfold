@@ -79,6 +79,18 @@ erDiagram
 ```
 Sent emails copy the recipient's name and address and the finished subject and body, so removing a recipient, template or connection never changes history.
 
+## Cache (ADR 0013)
+```mermaid
+flowchart LR
+  P[Page / query] -->|versions of its tags, one round trip| C[(Redis cache)]
+  P -->|hit| C
+  P -->|miss| D[(Postgres)]
+  W[Use case write] --> R[Wrapped repository]
+  R --> D
+  R -->|after commit: new version for the tag| C
+```
+`readThrough` (application) builds keys from the organisation's tag versions; `invalidating` (infra) wraps every repository and applies the effects listed in `infra/cache/specs.ts`; the allowlist and a person's organisation list are cached inside their repositories and deleted on write; Google access tokens and Drive folder ids are cached by the adapters that fetch them.
+
 ## Multi-tenancy
 Every org-owned repository method takes an `orgId`; `AuthorizationService` resolves membership and permissions in one
 place. A non-member gets `not_found`, never `forbidden`, so org existence is not leaked. RLS is enabled on every table

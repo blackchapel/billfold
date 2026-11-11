@@ -532,6 +532,102 @@ run("repositories (real Postgres)", () => {
     });
   });
 
+  describe("lean read queries", () => {
+    async function world() {
+      const r = build();
+      const owner = await newUser(r, "o@example.com");
+      const a = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Alpha", defaultCurrency: "INR" });
+      const b = await new CreateOrg(r.orgs, r.users, r.audit).execute({ userId: owner.id, name: "Org Beta", defaultCurrency: "INR" });
+      const bills = new DrizzleBillRepository(db);
+      const conns = new DrizzleConnectionRepository(db);
+      const drive = await conns.create({ orgId: a.id, kind: "google_drive", label: "d", accountEmail: "d@a.com", config: {}, secretCiphertext: "sealed-secret", createdBy: owner.id });
+      const file = (n: number) => ({ driveConnectionId: drive.id, driveAccount: "d@a.com", driveFileId: `f${n}`, driveFolderId: "fo", webViewLink: "https://x", name: `${n}.pdf`, mimeType: "application/pdf", sizeBytes: 5, sha256: "ab".repeat(32) });
+      const bill = (key: string, over: Record<string, unknown> = {}) => ({
+        periodKey: "2026-10", sourceId: null, sourceName: "Jio", billerName: "Jio", amountMinor: 100n, currency: "INR", billDate: null, dueDate: null,
+        confidence: "high" as const, method: "text" as const, needsReview: false, note: null, messageKey: key, createdBy: owner.id, ...over,
+      });
+      return { r, owner, a, b, bills, conns, drive, file, bill };
+    }
+
+    it("summarises months and bills needing a check without loading them, ignoring deleted bills and other orgs", async () => {
+      const w = await world();
+      await w.bills.record(w.a.id, w.bill("k1"), w.file(1));
+      await w.bills.record(w.a.id, w.bill("k2", { periodKey: "2026-09", needsReview: true }), w.file(2));
+      const gone = await w.bills.record(w.a.id, w.bill("k3", { periodKey: "2026-01", needsReview: true }), w.file(3));
+      await w.bills.update(w.a.id, gone.id, { deletedAt: new Date() });
+      await w.bills.record(w.b.id, w.bill("k4", { periodKey: "2025-12", needsReview: true }), { ...w.file(4), driveConnectionId: null as never });
+      expect(await w.bills.summary(w.a.id)).toEqual({ months: ["2026-10", "2026-09"], needsReviewCount: 1 });
+      expect(await w.bills.summary(w.b.id)).toEqual({ months: ["2025-12"], needsReviewCount: 1 });
+    });
+
+    it("gives reports their window plus every unpaid and every flagged bill, never files, deleted bills or other orgs", async () => {
+      const w = await world();
+      await w.bills.record(w.a.id, w.bill("new"), w.file(1));
+      const oldPaid = await w.bills.record(w.a.id, w.bill("old-paid", { periodKey: "2024-03" }), w.file(2));
+      await w.bills.update(w.a.id, oldPaid.id, { paidAt: new Date() });
+      await w.bills.record(w.a.id, w.bill("old-unpaid", { periodKey: "2024-04" }), w.file(3));
+      const flagged = await w.bills.record(w.a.id, w.bill("old-flagged", { periodKey: "2024-05", needsReview: true }), w.file(4));
+      await w.bills.update(w.a.id, flagged.id, { paidAt: new Date() });
+      const del = await w.bills.record(w.a.id, w.bill("deleted", { periodKey: "2026-10" }), w.file(5));
+      await w.bills.update(w.a.id, del.id, { deletedAt: new Date() });
+      const rows = await w.bills.reportRows(w.a.id, "2025-11");
+      expect(rows.map((x) => x.messageKey).sort()).toEqual(["new", "old-flagged", "old-unpaid"]); // "old-paid" is outside the window and settled
+      expect(rows.every((x) => x.files.length === 0)).toBe(true);
+      expect(await w.bills.reportRows(w.b.id, "2000-01")).toEqual([]);
+    });
+
+    it("finds bills by id with their files, only in their own org", async () => {
+      const w = await world();
+      const one = await w.bills.record(w.a.id, w.bill("k1"), w.file(1));
+      expect((await w.bills.findMany(w.a.id, [one.id]))[0]?.files).toHaveLength(1);
+      expect(await w.bills.findMany(w.b.id, [one.id])).toEqual([]);
+      expect(await w.bills.findMany(w.a.id, [])).toEqual([]);
+    });
+
+    it("lists connections and sources without reading their sealed secrets, which stay readable one at a time", async () => {
+      const w = await world();
+      const [c] = await w.conns.list(w.a.id);
+      expect(c).toBeDefined();
+      expect(JSON.stringify(c)).not.toContain("sealed-secret");
+      expect(await w.conns.findSecret(w.a.id, w.drive.id)).toBe("sealed-secret");
+      const sources = new DrizzleSourceRepository(db);
+      const mail = await w.conns.create({ orgId: w.a.id, kind: "imap", label: "m", accountEmail: "m@a.com", config: {}, secretCiphertext: "x", createdBy: w.owner.id });
+      const matcher = { senders: ["@jio.com"], subjectContains: null, attachmentNameContains: null, requireAttachment: true };
+      const withPw = await sources.create(w.a.id, w.owner.id, { name: "With", connectionId: mail.id, matcher, passwordMode: "static", passwordPattern: null }, "sealed-password");
+      const without = await sources.create(w.a.id, w.owner.id, { name: "Without", connectionId: mail.id, matcher, passwordMode: "none", passwordPattern: null }, null);
+      const listed = await sources.list(w.a.id);
+      expect(listed.find((s) => s.id === withPw.id)?.hasStaticPassword).toBe(true);
+      expect(listed.find((s) => s.id === without.id)?.hasStaticPassword).toBe(false);
+      expect((await sources.find(w.a.id, withPw.id))?.hasStaticPassword).toBe(true);
+      expect(JSON.stringify(listed)).not.toContain("sealed-password");
+      expect(await sources.findPasswordCiphertext(w.a.id, withPw.id)).toBe("sealed-password");
+    });
+
+    it("lists sends without their message text, and finds one with it", async () => {
+      const w = await world();
+      const sends = new DrizzleSendRepository(db);
+      const s = await sends.create(w.a.id, { periodKey: "2026-10", templateName: "T", subject: "Bills", bodyHtml: "<p>BIG</p>", bodyText: "BIG", fromConnectionId: null, fromAccount: "me@a.com", attachmentFileIds: [], attachmentBytes: 0, billCount: 1, totalMinor: 1n, isTest: false, createdBy: w.owner.id });
+      const [listed] = await sends.list(w.a.id, 10);
+      expect(listed).toMatchObject({ id: s.id, subject: "Bills" });
+      expect(Object.keys(listed ?? {})).not.toContain("bodyHtml");
+      expect(Object.keys(listed ?? {})).not.toContain("bodyText");
+      expect((await sends.find(w.a.id, s.id))?.bodyHtml).toBe("<p>BIG</p>");
+    });
+
+    it("remembers the last organisation without rewriting an unchanged row", async () => {
+      const w = await world();
+      const users = new DrizzleUserRepository(db);
+      await users.setLastActiveOrg(w.owner.id, w.a.id);
+      const first = await db.execute(sql`select updated_at from users where id = ${w.owner.id}`);
+      await new Promise((res) => setTimeout(res, 20));
+      await users.setLastActiveOrg(w.owner.id, w.a.id); // nothing changed: no write
+      const second = await db.execute(sql`select updated_at from users where id = ${w.owner.id}`);
+      expect(second[0]?.updated_at).toEqual(first[0]?.updated_at);
+      await users.setLastActiveOrg(w.owner.id, w.b.id);
+      expect((await users.findById(w.owner.id))?.lastActiveOrgId).toBe(w.b.id);
+    });
+  });
+
   it("rate limiter blocks after the limit within the window", async () => {
     const limiter = new PostgresRateLimiter(db);
     const results = [];

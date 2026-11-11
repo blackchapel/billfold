@@ -1,12 +1,14 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, getTableColumns } from "drizzle-orm";
 import type { ConnectionRepository } from "@/domain/ports/repositories";
 import type { ConnectionRecord, NewConnection } from "@/domain/ports/records";
-import type { ConnectionKind, ConnectionStatus } from "@/domain/value-objects/connection";
+import type { ConnectionConfig, ConnectionKind, ConnectionStatus } from "@/domain/value-objects/connection";
 import type { Db } from "../db/create";
 import { connections } from "../db/schema";
 
-/** Deliberately omits secret_ciphertext: it is only ever read through findSecret. */
-const toRecord = (r: typeof connections.$inferSelect): ConnectionRecord => ({
+/** Deliberately omits secret_ciphertext, in the record and in the query itself (`safeColumns`): it is only ever read through findSecret. */
+type SafeRow = Omit<typeof connections.$inferSelect, "secretCiphertext">;
+const { secretCiphertext: _sealed, ...safeColumns } = getTableColumns(connections); // eslint-disable-line @typescript-eslint/no-unused-vars
+const toRecord = (r: SafeRow): ConnectionRecord => ({
   id: r.id, orgId: r.orgId, kind: r.kind as ConnectionKind, label: r.label, accountEmail: r.accountEmail,
   config: r.config, status: r.status as ConnectionStatus, lastCheckedAt: r.lastCheckedAt, lastError: r.lastError, createdAt: r.createdAt,
 });
@@ -21,16 +23,16 @@ export class DrizzleConnectionRepository implements ConnectionRepository {
   }
 
   async list(orgId: string) {
-    return (await this.db.select().from(connections).where(eq(connections.orgId, orgId)).orderBy(asc(connections.kind), asc(connections.label))).map(toRecord);
+    return (await this.db.select(safeColumns).from(connections).where(eq(connections.orgId, orgId)).orderBy(asc(connections.kind), asc(connections.label))).map(toRecord);
   }
 
   async find(orgId: string, id: string) {
-    const [row] = await this.db.select().from(connections).where(and(eq(connections.orgId, orgId), eq(connections.id, id))).limit(1);
+    const [row] = await this.db.select(safeColumns).from(connections).where(and(eq(connections.orgId, orgId), eq(connections.id, id))).limit(1);
     return row ? toRecord(row) : null;
   }
 
   async findByAccount(orgId: string, kind: ConnectionKind, accountEmail: string) {
-    const [row] = await this.db.select().from(connections)
+    const [row] = await this.db.select(safeColumns).from(connections)
       .where(and(eq(connections.orgId, orgId), eq(connections.kind, kind), eq(connections.accountEmail, accountEmail))).limit(1);
     return row ? toRecord(row) : null;
   }
@@ -41,8 +43,8 @@ export class DrizzleConnectionRepository implements ConnectionRepository {
     return row?.s ?? null;
   }
 
-  async replaceSecret(orgId: string, id: string, secretCiphertext: string) {
-    await this.db.update(connections).set({ secretCiphertext, status: "active", lastError: null })
+  async replaceSecret(orgId: string, id: string, secretCiphertext: string, config?: ConnectionConfig) {
+    await this.db.update(connections).set({ secretCiphertext, status: "active", lastError: null, ...(config ? { config } : {}) })
       .where(and(eq(connections.orgId, orgId), eq(connections.id, id)));
   }
 

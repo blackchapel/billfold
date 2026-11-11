@@ -2,6 +2,7 @@ import { DomainError } from "@/domain/errors/domain-error";
 import type { AuditLogRepository, ConnectionRepository, SourceRepository } from "@/domain/ports/repositories";
 import type { SourceFields, SourceRecord } from "@/domain/ports/records";
 import type { SecretBox } from "@/domain/ports/services";
+import { fileTemplateProblem, folderTemplateProblem } from "@/lib/name-template";
 import { PASSWORD_MODES, validatePasswordPattern, type PasswordMode } from "@/domain/value-objects/password-rule";
 import { parseSender } from "@/domain/value-objects/source-rules";
 import type { AuthorizationService } from "./authorization";
@@ -21,6 +22,10 @@ export interface SourceInput {
   passwordPattern: string | null;
   /** The PDF password for mode "static". Blank when editing keeps the saved one. */
   staticPassword: string | null;
+  /** How filed PDFs are named, e.g. "phone-bill-{{Mon}}{{yy}}". Blank keeps the built-in name. */
+  fileNameTemplate?: string | null;
+  /** Where filed PDFs go, from the top of Drive, e.g. "bills/{{Mon}}{{yy}}". Blank keeps the built-in layout. */
+  folderTemplate?: string | null;
 }
 
 const clean = (value: string | null, max: number, label: string): string | null => {
@@ -47,6 +52,12 @@ export function validateSourceFields(input: SourceInput): SourceFields {
     const problem = validatePasswordPattern(passwordPattern);
     if (problem) throw new DomainError("validation", problem);
   }
+  const fileNameTemplate = input.fileNameTemplate?.trim() || null;
+  const folderTemplate = input.folderTemplate?.trim() || null;
+  const fileProblem = fileNameTemplate ? fileTemplateProblem(fileNameTemplate) : null;
+  if (fileProblem) throw new DomainError("validation", fileProblem);
+  const folderProblem = folderTemplate ? folderTemplateProblem(folderTemplate) : null;
+  if (folderProblem) throw new DomainError("validation", folderProblem);
   return {
     name,
     connectionId: input.connectionId,
@@ -58,6 +69,8 @@ export function validateSourceFields(input: SourceInput): SourceFields {
     },
     passwordMode: input.passwordMode,
     passwordPattern,
+    fileNameTemplate,
+    folderTemplate,
   };
 }
 

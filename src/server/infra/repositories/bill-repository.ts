@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import type { BillRepository } from "@/domain/ports/repositories";
 import type { BillFilter, BillPatch, BillRecord, NewBill, NewBillFile } from "@/domain/ports/records";
 import type { Confidence } from "@/domain/value-objects/bill-data";
@@ -51,10 +51,15 @@ export class DrizzleBillRepository implements BillRepository {
     });
   }
 
-  async createManual(orgId: string, bill: NewBill) {
-    const [b] = await this.db.insert(bills).values({ orgId, ...bill }).returning();
-    if (!b) throw new Error("Bill insert returned no row");
-    return toBill(b, []);
+  async createManual(orgId: string, bill: NewBill, file?: NewBillFile) {
+    return this.db.transaction(async (tx) => {
+      const [b] = await tx.insert(bills).values({ orgId, ...bill }).returning();
+      if (!b) throw new Error("Bill insert returned no row");
+      if (!file) return toBill(b, []);
+      const [f] = await tx.insert(billFiles).values({ orgId, billId: b.id, ...file }).returning();
+      if (!f) throw new Error("Bill file insert returned no row");
+      return toBill(b, [f]);
+    });
   }
 
   async find(orgId: string, id: string) {
@@ -75,6 +80,26 @@ export class DrizzleBillRepository implements BillRepository {
       f.deleted === "only" ? isNotNull(bills.deletedAt) : isNull(bills.deletedAt),
     )).orderBy(desc(bills.periodKey), asc(bills.billerName), desc(bills.createdAt));
     return this.withFiles(rows, orgId);
+  }
+
+  async findMany(orgId: string, ids: string[]) {
+    if (ids.length === 0) return [];
+    const rows = await this.db.select().from(bills).where(and(eq(bills.orgId, orgId), inArray(bills.id, ids)));
+    return this.withFiles(rows, orgId);
+  }
+
+  async summary(orgId: string) {
+    const rows = await this.db.select({ period: bills.periodKey, review: sql<number>`(count(*) filter (where ${bills.needsReview}))::int` })
+      .from(bills).where(and(eq(bills.orgId, orgId), isNull(bills.deletedAt))).groupBy(bills.periodKey).orderBy(desc(bills.periodKey));
+    return { months: rows.map((r) => r.period), needsReviewCount: rows.reduce((t, r) => t + r.review, 0) };
+  }
+
+  async reportRows(orgId: string, fromPeriod: string) {
+    const rows = await this.db.select().from(bills).where(and(
+      eq(bills.orgId, orgId), isNull(bills.deletedAt),
+      or(gte(bills.periodKey, fromPeriod), isNull(bills.paidAt), eq(bills.needsReview, true)),
+    ));
+    return rows.map((b) => toBill(b, []));
   }
 
   async findFiles(orgId: string, fileIds: string[]) {

@@ -80,6 +80,20 @@ describe("SaveSource", () => {
     await fail({ subjectContains: "x".repeat(101) }, /at most 100/);
     await fail({ passwordMode: "bogus" as never }, /Choose how to open/);
   });
+  it("stores a file name and folder path template, trims them, treats blanks as none, and says what is wrong with a bad one", async () => {
+    const w = await world();
+    const s = await w.save.execute(w.input({ name: "Phone", fileNameTemplate: "  phone-bill_xxxx-{{Mon}}{{yy}}  ", folderTemplate: " bills/{{Mon}}{{yy}} " }));
+    expect(s).toMatchObject({ fileNameTemplate: "phone-bill_xxxx-{{Mon}}{{yy}}", folderTemplate: "bills/{{Mon}}{{yy}}" });
+    const blank = await w.save.execute(w.input({ name: "Plain", fileNameTemplate: "   ", folderTemplate: "" }));
+    expect(blank).toMatchObject({ fileNameTemplate: null, folderTemplate: null });
+    const none = await w.save.execute(w.input({ name: "Untouched" }));
+    expect(none).toMatchObject({ fileNameTemplate: null, folderTemplate: null });
+    await expect(w.save.execute(w.input({ name: "Alpha", fileNameTemplate: "bill-{{Mnth}}" }))).rejects.toThrow(/Unknown placeholder: \{\{Mnth\}\}/);
+    await expect(w.save.execute(w.input({ name: "Bravo", fileNameTemplate: "a/b" }))).rejects.toThrow(/slash/);
+    await expect(w.save.execute(w.input({ name: "Charlie", folderTemplate: "bills/{{original}}" }))).rejects.toThrow(/file name/);
+    await expect(w.save.execute(w.input({ name: "Delta", folderTemplate: "../etc" }))).rejects.toThrow(/cannot be \./);
+    expect(m.sources.size).toBe(3); // the rejected ones were not saved
+  });
   it("only accepts a Gmail or IMAP mailbox from the same org", async () => {
     const w = await world();
     await expect(w.save.execute(w.input({ connectionId: w.smtp.id }))).rejects.toThrow(/Gmail or IMAP/);

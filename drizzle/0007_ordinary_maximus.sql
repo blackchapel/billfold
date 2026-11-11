@@ -1,0 +1,2 @@
+CREATE INDEX "bills_org_live_period_idx" ON "bills" USING btree ("org_id","period_key") WHERE "bills"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "bills_org_attention_idx" ON "bills" USING btree ("org_id") WHERE "bills"."deleted_at" is null and ("bills"."paid_at" is null or "bills"."needs_review");

@@ -12,6 +12,7 @@ async function breakConnection(account: string) {
   const sql = postgres(DB, { max: 1, prepare: false });
   await sql`update connections set status = 'needs_attention', last_error = 'The server rejected the username or app password.' where account_email = ${account}`;
   await sql.end();
+  await fetch("http://localhost:3100/api/test/cache", { method: "POST" }); // a change made behind the app's back must be forgotten by the cache, as a real one would be
 }
 const row = (page: Page, text: string) => page.locator("li", { hasText: text });
 

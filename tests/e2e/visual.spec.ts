@@ -6,7 +6,7 @@ const VIEWPORTS = [{ name: "phone", width: 390, height: 844 }, { name: "desktop"
 const SCHEMES = ["light", "dark"] as const;
 const OWNER_PAGES = ["/sharma-home", "/sharma-home/members", "/sharma-home/connections", "/sharma-home/sources", "/sharma-home/sources/new", "/sharma-home/run-configs", "/sharma-home/run-configs/new", "/sharma-home/runs", "/sharma-home/bills", "/sharma-home/bills/new", "/sharma-home/reports", "/sharma-home/send", "/sharma-home/recipients", "/sharma-home/templates", "/sharma-home/templates/new", "/sharma-home/invites", "/sharma-home/audit", "/sharma-home/settings", "/onboarding"];
 const ADMIN_PAGES = ["/admin"];
-const PUBLIC_PAGES = ["/", "/sign-in", "/not-authorised", "/privacy", "/terms"];
+const PUBLIC_PAGES = ["/", "/sign-in", "/not-authorised", "/privacy", "/terms", "/test-skeleton"];
 
 // Runs after flows.spec (file order): org "sharma-home" and the owner exist, root is the super admin.
 test("V1 every page: no console errors, no overflow, no axe violations, screenshots in light/dark and phone/desktop", async ({ browser }) => {

@@ -1,9 +1,15 @@
 import { DEFAULT_CURRENCY, ORG_UTC_OFFSET_MINUTES } from "@/constants/app";
 import { DomainError } from "@/domain/errors/domain-error";
-import type { AuditLogRepository, BillRepository } from "@/domain/ports/repositories";
-import type { BillFilter, BillPatch, BillRecord } from "@/domain/ports/records";
-import type { Clock } from "@/domain/ports/services";
+import type { AuditLogRepository, BillRepository, ConnectionRepository } from "@/domain/ports/repositories";
+import type { BillFilter, BillPatch, BillRecord, NewBillFile } from "@/domain/ports/records";
+import type { Clock, DriveStore, SecretBox } from "@/domain/ports/services";
 import { isIsoDay } from "@/domain/value-objects/bill-data";
+import { hasFullDriveAccess } from "@/domain/value-objects/connection";
+import { sniffBillFile } from "@/domain/value-objects/upload";
+import { BILL_UPLOAD_MAX_BYTES } from "@/constants/bills";
+import { sha256Hex } from "@/lib/hash";
+import { errorFields, logEvent } from "@/lib/log";
+import { cleanName, folderTemplateProblem, renderFolderPath } from "@/lib/name-template";
 import { INR } from "@/domain/value-objects/currency";
 import { Money } from "@/domain/value-objects/money";
 import { isPeriodKey, periodKeyFor } from "@/domain/value-objects/period";
@@ -96,26 +102,78 @@ export class MarkBillChecked {
 }
 
 /** A bill with no email behind it: a cash payment, a paper bill, something the mailbox never saw. */
+/** A file attached to a bill typed in by hand, and where in Google Drive it goes. */
+export interface BillUpload {
+  driveConnectionId: string;
+  /** Folders from the top of Drive, e.g. "bills/{{Mon}}{{yy}}" (the bill's month fills the placeholders). */
+  folderTemplate: string;
+  file: { name: string; bytes: Uint8Array };
+}
+
+/** What a hand-typed bill needs to also file a document: the Drive connection, its sealed secret and the Drive itself. */
+export interface BillFileDeps {
+  connections: ConnectionRepository;
+  secrets: SecretBox;
+  drive: DriveStore;
+}
+
 export class CreateManualBill {
   constructor(
     private readonly bills: BillRepository,
     private readonly authz: AuthorizationService,
     private readonly clock: Clock,
     private readonly audit: AuditLogRepository,
+    private readonly files?: BillFileDeps,
   ) {}
 
-  async execute(input: { actorId: string; orgId: string; fields: BillFields }): Promise<BillRecord> {
+  async execute(input: { actorId: string; orgId: string; fields: BillFields; upload?: BillUpload }): Promise<BillRecord> {
     await this.authz.require(input.actorId, input.orgId, "bills.edit");
     const now = this.clock.now();
     const clean = cleanBillFields(input.fields, now);
     if (clean.amountMinor === null) throw new DomainError("validation", "Enter the amount.");
+    const filed = input.upload ? await this.fileDocument(input.orgId, clean.periodKey, input.upload) : null;
     const bill = await this.bills.createManual(input.orgId, {
       ...clean, sourceId: null, sourceName: "Added by hand", currency: DEFAULT_CURRENCY, confidence: "high", method: "manual",
       needsReview: false, messageKey: `manual:${crypto.randomUUID()}`, createdBy: input.actorId,
-    });
+    }, filed ?? undefined);
     await this.bills.update(input.orgId, bill.id, { reviewedAt: now, reviewedBy: input.actorId });
-    await this.audit.record({ orgId: input.orgId, actorUserId: input.actorId, action: "bill.created_manually", entityType: "bill", entityId: bill.id, metadata: { biller: clean.billerName, period: clean.periodKey } });
+    await this.audit.record({ orgId: input.orgId, actorUserId: input.actorId, action: "bill.created_manually", entityType: "bill", entityId: bill.id, metadata: { biller: clean.billerName, period: clean.periodKey, withFile: filed !== null } });
     return bill;
+  }
+
+  /** Checks the file and the folder, puts the file in Drive under the name it was uploaded with, and returns what to record about it. */
+  private async fileDocument(orgId: string, periodKey: string, upload: BillUpload): Promise<NewBillFile> {
+    if (!this.files) throw new DomainError("validation", "Attaching a file is not available.");
+    const { file } = upload;
+    if (file.bytes.byteLength === 0) throw new DomainError("validation", "That file is empty.");
+    if (file.bytes.byteLength > BILL_UPLOAD_MAX_BYTES) throw new DomainError("validation", `The file is larger than ${BILL_UPLOAD_MAX_BYTES / 1048576} MB. Shrink it or file it in Drive by hand.`);
+    const kind = sniffBillFile(file.bytes);
+    if (!kind) throw new DomainError("validation", "Only PDF files and pictures (PNG, JPG or WebP) can be attached.");
+    const template = upload.folderTemplate.trim();
+    if (!template) throw new DomainError("validation", "Enter the folder to save the file in, for example bills/{{Mon}}{{yy}}.");
+    const problem = folderTemplateProblem(template);
+    if (problem) throw new DomainError("validation", problem);
+    const drive = await this.files.connections.find(orgId, upload.driveConnectionId);
+    const cipher = drive && drive.kind === "google_drive" ? await this.files.connections.findSecret(orgId, drive.id) : null;
+    if (!drive || !cipher) throw new DomainError("validation", "Choose the Google Drive to save the file in.");
+    if (!hasFullDriveAccess(drive.config)) throw new DomainError("validation", "This Google Drive needs more permission to use your own folders. Open Connections, press Reconnect on it and allow access, then try again.");
+
+    // The name stays as it was uploaded (cleaned of characters Drive dislikes); the right extension is added only when it is missing.
+    const cleaned = cleanName(file.name) || "bill";
+    const fileName = cleaned.toLowerCase().endsWith(kind.extension) || (kind.extension === ".jpg" && /\.jpe?g$/i.test(cleaned)) ? cleaned : `${cleaned}${kind.extension}`;
+    const folderPath = renderFolderPath(template, { periodKey, sourceName: "Added by hand" });
+    if (folderPath.length === 0) throw new DomainError("validation", "The folder path came out empty.");
+    let stored;
+    try {
+      stored = await this.files.drive.upload({ secretJson: await this.files.secrets.decrypt(orgId, cipher), folderPath, fileName, bytes: file.bytes, mimeType: kind.mimeType, avoidDuplicate: true });
+    } catch (e) {
+      logEvent("manual_bill_upload_failed", errorFields(e));
+      throw new DomainError("validation", "Could not save the file to Google Drive. Check the Drive connection and try again. The bill was not added.");
+    }
+    return {
+      driveConnectionId: drive.id, driveAccount: drive.accountEmail, driveFileId: stored.fileId, driveFolderId: stored.folderId, webViewLink: stored.webViewLink,
+      name: stored.name, mimeType: kind.mimeType, sizeBytes: file.bytes.byteLength, sha256: sha256Hex(file.bytes),
+    };
   }
 }
 
@@ -163,4 +221,5 @@ export class ListBills {
   constructor(private readonly bills: BillRepository) {}
   list(orgId: string, filter: BillFilter): Promise<BillRecord[]> { return this.bills.list(orgId, filter); }
   find(orgId: string, id: string): Promise<BillRecord | null> { return this.bills.find(orgId, id); }
+  summary(orgId: string) { return this.bills.summary(orgId); }
 }

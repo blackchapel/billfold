@@ -1,5 +1,5 @@
-import { DeleteForm, RenameForm, TransferForm } from "@/components/features/org/org-admin-forms";
-import { deleteOrgAction, renameOrgAction, transferOwnershipAction } from "@/server/http/actions/org-actions";
+import { ClearCacheForm, DeleteForm, RenameForm, TransferForm } from "@/components/features/org/org-admin-forms";
+import { clearCacheAction, deleteOrgAction, renameOrgAction, transferOwnershipAction } from "@/server/http/actions/org-actions";
 import { listMembers } from "@/server/http/queries/org-queries";
 import { requireOrg } from "@/server/http/session";
 
@@ -27,6 +27,13 @@ export default async function Settings({ params }: { params: Promise<{ orgSlug: 
           <h2 className="font-serif text-2xl">Rename</h2>
           <p className="mb-4 mt-1 text-sm text-muted">The address stays the same so existing links keep working.</p>
           <RenameForm action={renameOrgAction.bind(null, orgSlug) as never} name={membership.org.name} />
+        </section>
+      )}
+      {canManage && (
+        <section className="mt-10 border-t border-line pt-6">
+          <h2 className="font-serif text-2xl">Cache</h2>
+          <p className="mb-4 mt-1 text-sm text-muted">Billfold remembers lists and reports for a few minutes so pages open quickly, and forgets them the moment something changes. If a screen ever looks out of date, clear it here.</p>
+          <ClearCacheForm action={clearCacheAction.bind(null, orgSlug) as never} />
         </section>
       )}
       {canTransfer && (

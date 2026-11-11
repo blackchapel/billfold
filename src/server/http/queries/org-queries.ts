@@ -2,6 +2,7 @@ import "server-only";
 import { effectivePermissions } from "@/domain/policies/permissions";
 import { container } from "../../composition-root/container";
 import type { OrgSummaryDto } from "@/types/auth";
+import { cachedRead } from "./cached";
 
 export async function listMyOrgs(userId: string): Promise<OrgSummaryDto[]> {
   const memberships = await container().repos.orgs.listForUser(userId);
@@ -21,7 +22,7 @@ export async function markActiveOrg(userId: string, orgId: string): Promise<void
 }
 
 export async function listMembers(orgId: string) {
-  const members = await container().repos.members.list(orgId);
+  const members = await cachedRead(orgId, "members", ["members"], null, () => container().repos.members.list(orgId));
   return members.map((m) => ({ ...m, permissions: effectivePermissions(m.role, m.overrides) }));
 }
 

@@ -11,7 +11,7 @@ const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const TIMEOUT_MS = 10_000;
 
-interface TokenResponse { access_token?: string; refresh_token?: string; error?: string }
+interface TokenResponse { access_token?: string; refresh_token?: string; scope?: string; error?: string }
 
 export class GoogleOAuth implements GoogleOAuthClient {
   constructor(private readonly projects: GoogleProjects, private readonly http: typeof fetch = fetch) {}
@@ -61,7 +61,7 @@ export class GoogleOAuth implements GoogleOAuthClient {
     const info = await this.http(USERINFO_URL, { headers: { authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     const { email } = (await info.json().catch(() => ({}))) as { email?: string };
     if (!info.ok || !email) throw new Error("Could not read the Google account email");
-    return { refreshToken: t.refresh_token, accountEmail: email.toLowerCase() };
+    return { refreshToken: t.refresh_token, accountEmail: email.toLowerCase(), scopes: (t.scope ?? "").split(/\s+/).filter(Boolean) };
   }
 
   async accessToken(kind: GoogleKind, refreshToken: string) {

@@ -21,6 +21,8 @@ const sourceSchema = z.object({
   passwordMode: z.enum(PASSWORD_MODES, "Choose how to open the PDF."),
   passwordPattern: text(120, "The pattern can be at most 120 characters."),
   staticPassword: z.string().max(256, "That password is too long.").transform((v) => v || null),
+  fileNameTemplate: text(150, "The file name can be at most 150 characters."),
+  folderTemplate: text(200, "The folder path can be at most 200 characters."),
 });
 
 function parse(form: FormData) {
@@ -29,6 +31,7 @@ function parse(form: FormData) {
     subjectContains: form.get("subjectContains") ?? "", attachmentNameContains: form.get("attachmentNameContains") ?? "",
     requireAttachment: form.get("requireAttachment") === "on", passwordMode: form.get("passwordMode"),
     passwordPattern: form.get("passwordPattern") ?? "", staticPassword: form.get("staticPassword") ?? "",
+    fileNameTemplate: form.get("fileNameTemplate") ?? "", folderTemplate: form.get("folderTemplate") ?? "",
   });
 }
 

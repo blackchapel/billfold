@@ -1,6 +1,6 @@
 import { DomainError } from "@/domain/errors/domain-error";
 import type { AuditLogRepository, BillRepository, ConnectionRepository, RecipientRepository, SendItemRepository, SendRepository, UserRepository } from "@/domain/ports/repositories";
-import type { SendCounts, SendItemRecord, SendRecord, SendStatus } from "@/domain/ports/records";
+import type { SendCounts, SendItemRecord, SendRecord, SendStatus, SendSummary } from "@/domain/ports/records";
 import type { Clock, DriveStore, MailSender, RateLimiter, SecretBox } from "@/domain/ports/services";
 import { SEND_LIMITS } from "@/domain/value-objects/email-template";
 import { errorFields, logEvent } from "@/lib/log";
@@ -208,11 +208,14 @@ export interface SendDetail { send: SendRecord; items: SendItemRecord[]; counts:
 export class ReadSends {
   constructor(private readonly sends: SendRepository, private readonly items: SendItemRepository) {}
 
-  async list(orgId: string, limit = 30): Promise<{ send: SendRecord; counts: SendCounts }[]> {
+  async list(orgId: string, limit = 30): Promise<{ send: SendSummary; counts: SendCounts }[]> {
     const rows = await this.sends.list(orgId, limit);
     const counts = await this.sends.counts(orgId, rows.map((r) => r.id));
     return rows.map((send) => ({ send, counts: counts.get(send.id) ?? { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0 } }));
   }
+
+  /** The latest sends without their delivery counts, for screens that only need to know what exists. */
+  recent(orgId: string, limit = 20): Promise<SendSummary[]> { return this.sends.list(orgId, limit); }
 
   async get(orgId: string, id: string): Promise<SendDetail | null> {
     const send = await this.sends.find(orgId, id);

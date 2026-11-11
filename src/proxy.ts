@@ -20,7 +20,7 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await supabase.auth.getUser();
+  await supabase.auth.getClaims(); // refreshes the session when it is about to expire; verifies locally when it can
   return response;
 }
 

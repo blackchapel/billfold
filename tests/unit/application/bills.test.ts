@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DomainError } from "@/domain/errors/domain-error";
 import type { NewBill } from "@/domain/ports/records";
 import { AuthorizationService } from "@/server/application/authorization";
+import { CompleteGoogleConnect } from "@/server/application/google-connect";
 import { CreateOrg } from "@/server/application/create-org";
 import { CreateManualBill, ListBills, MarkBillChecked, SetBillDeleted, SetBillPaid, UpdateBill, type BillFields } from "@/server/application/bills";
 import { ReportService } from "@/server/application/report-service";
@@ -109,6 +110,76 @@ describe("MarkBillChecked", () => {
   });
 });
 
+describe("CreateManualBill with a document", () => {
+  const pdf = (extra = 20) => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, ...new Array(extra).fill(0x31)]);
+  async function setup() {
+    const w = await world();
+    const drive = await new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo)
+      .execute({ actorId: w.owner.id, orgId: w.org.id, kind: "google_drive", code: "c", redirectUri: "r" });
+    const create = new CreateManualBill(m.billRepo, authz(), m.clock, m.auditRepo, { connections: m.connectionRepo, secrets: m.secretBox, drive: m.driveStore });
+    const add = (upload: Partial<{ driveConnectionId: string; folderTemplate: string; file: { name: string; bytes: Uint8Array } }> = {}, actorId = w.owner.id) =>
+      create.execute({ actorId, orgId: w.org.id, fields: fields({ billerName: "Maid", amountText: "3000", periodKey: "2026-10" }), upload: { driveConnectionId: drive.id, folderTemplate: "bills/{{Mon}}{{yy}}", file: { name: "receipt oct.pdf", bytes: pdf() }, ...upload } });
+    return { ...w, drive, add };
+  }
+
+  it("files the document in the chosen folder under the name it was uploaded with, and records it on the bill", async () => {
+    const w = await setup();
+    const bill = await w.add();
+    expect(m.uploads[0]).toMatchObject({ folderPath: ["bills", "Oct26"], fileName: "receipt oct.pdf", mimeType: "application/pdf", avoidDuplicate: true });
+    expect(bill.files[0]).toMatchObject({ name: "receipt oct.pdf", mimeType: "application/pdf", sizeBytes: 25, driveConnectionId: w.drive.id });
+    expect(bill.files[0]?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(m.audit.at(-1)).toMatchObject({ action: "bill.created_manually", metadata: { withFile: true } });
+  });
+  it("accepts pictures too, adds a missing extension, and cleans characters Drive dislikes from the name", async () => {
+    const w = await setup();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    await w.add({ file: { name: "photo of bill", bytes: png } });
+    expect(m.uploads[0]).toMatchObject({ fileName: "photo of bill.png", mimeType: "image/png" });
+    await w.add({ file: { name: "a/b: c?.jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 1]) } });
+    expect(m.uploads[1]?.fileName).toBe("a b c .jpeg");
+  });
+  it("without a file nothing changes: no Drive call, no file on the bill", async () => {
+    const w = await setup();
+    const bill = await new CreateManualBill(m.billRepo, authz(), m.clock, m.auditRepo).execute({ actorId: w.owner.id, orgId: w.org.id, fields: fields({ billerName: "Maid", amountText: "3000" }) });
+    expect(bill.files).toEqual([]);
+    expect(m.uploads).toHaveLength(0);
+  });
+  it("refuses an empty, oversize or disguised file and says why; nothing is filed and no bill is made", async () => {
+    const w = await setup();
+    const before = m.bills.size;
+    await expect(w.add({ file: { name: "a.pdf", bytes: new Uint8Array() } })).rejects.toThrow(/empty/);
+    await expect(w.add({ file: { name: "a.pdf", bytes: pdf(4 * 1024 * 1024) } })).rejects.toThrow(/larger than 4 MB/);
+    await expect(w.add({ file: { name: "program.pdf", bytes: new Uint8Array([0x4d, 0x5a, 0x90, 0x00]) } })).rejects.toThrow(/Only PDF files and pictures/);
+    expect(m.uploads).toHaveLength(0);
+    expect(m.bills.size).toBe(before);
+  });
+  it("needs a valid folder and a Drive that is allowed to use the person's own folders", async () => {
+    const w = await setup();
+    await expect(w.add({ folderTemplate: "  " })).rejects.toThrow(/Enter the folder/);
+    await expect(w.add({ folderTemplate: "bills/{{Mnth}}" })).rejects.toThrow(/Unknown placeholder/);
+    await expect(w.add({ folderTemplate: "../x" })).rejects.toThrow(/cannot be \./);
+    await expect(w.add({ driveConnectionId: "00000000-0000-4000-8000-000000000000" })).rejects.toThrow(/Choose the Google Drive/);
+    const drive = m.connections.get(w.drive.id);
+    if (drive) drive.config = {}; // connected before full access was asked for
+    await expect(w.add()).rejects.toThrow(/needs more permission/);
+    expect(m.uploads).toHaveLength(0);
+  });
+  it("does not add the bill when the upload to Drive fails, and hides the provider's error", async () => {
+    const w = await setup();
+    m.uploadFails = true;
+    const before = m.bills.size;
+    await expect(w.add()).rejects.toThrow(/Could not save the file to Google Drive.*not added/);
+    expect(m.bills.size).toBe(before);
+  });
+  it("needs bills.edit, and cannot use another organisation's Drive", async () => {
+    const w = await setup();
+    await expectCode(w.add({}, w.viewer.id), "forbidden");
+    const theirs = await new CompleteGoogleConnect(m.connectionRepo, authz(), m.secretBox, m.google, m.probe, m.clock, m.auditRepo)
+      .execute({ actorId: w.stranger.id, orgId: w.other.id, kind: "google_drive", code: "c", redirectUri: "r" });
+    await expect(w.add({ driveConnectionId: theirs.id })).rejects.toThrow(/Choose the Google Drive/);
+  });
+});
+
 describe("CreateManualBill", () => {
   it("adds a bill by hand: no email, no file, already checked, never refiled", async () => {
     const w = await world();
@@ -177,6 +248,25 @@ describe("ListBills", () => {
 });
 
 describe("ReportService", () => {
+  it("reads only the window it reports on plus unpaid and flagged bills of any age, and gives the same answer as reading everything", async () => {
+    const w = await world();
+    // Years of settled history that no report on October 2026 should need.
+    for (let i = 0; i < 30; i++) {
+      const bill = await m.billRepo.record(w.org.id, newBill({ periodKey: `${2022 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`, amountMinor: 1_000n, messageKey: `old-${i}` }), file);
+      await w.paid.execute({ actorId: w.owner.id, orgId: w.org.id, billId: bill.id, paid: true });
+    }
+    await m.billRepo.record(w.org.id, newBill({ periodKey: "2023-02", billerName: "Ancient", messageKey: "ancient-unpaid", dueDate: "2023-03-01" }), file); // still owed
+    const asked: string[] = [];
+    const spy = { ...m.billRepo, list: async () => { asked.push("list"); throw new Error("the report must not load every bill"); } };
+    const report = await new ReportService(spy as typeof m.billRepo, m.clock).build(w.org.id, null);
+    expect(asked).toEqual([]);
+    expect(report.overdue.map((b) => b.billerName)).toContain("Ancient"); // an old unpaid bill is still overdue
+    expect(report.trend).toHaveLength(12);
+    expect(report.trend.at(-1)).toMatchObject({ periodKey: "2026-10", count: 2 });
+    expect(report.monthsWithBills).toContain("2022-01"); // every month that has bills can be opened
+    expect(report.insights.some((i) => /needs? a quick check/.test(i.text))).toBe(true); // the flagged scan still counts
+  });
+
   it("builds the month, the 12-month trend, the biller table, overdue and upcoming bills and the insights from live bills", async () => {
     const w = await world();
     await m.billRepo.record(w.org.id, newBill({ periodKey: "2026-09", amountMinor: 100_000n, messageKey: "jio-sep", dueDate: "2026-10-12" }), file); // old and unpaid: overdue

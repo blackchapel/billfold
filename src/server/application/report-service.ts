@@ -34,14 +34,17 @@ export class ReportService {
   async build(orgId: string, requestedPeriod: string | null): Promise<ReportModel> {
     const now = this.clock.now();
     const currentKey = periodKeyFor(now, ORG_UTC_OFFSET_MINUTES);
-    const all = await this.bills.list(orgId, {});
-    const monthsWithBills = [...new Set(all.map((b) => b.periodKey))].sort().reverse();
+    // Two small queries instead of loading every bill ever filed: which months have bills, and just the rows the maths reads.
+    const summary = await this.bills.summary(orgId);
+    const monthsWithBills = summary.months;
     // Any real month up to this one can be opened, also one with no bills: the chart links to every column, so each must lead somewhere.
     const usable = requestedPeriod !== null && isPeriodKey(requestedPeriod) && requestedPeriod >= "2000-01" && requestedPeriod <= currentKey;
     const periodKey = usable ? requestedPeriod : (monthsWithBills[0] ?? currentKey);
 
     const keys = lastPeriodKeys(periodKey, TREND_MONTHS);
-    // Overdue and upcoming bills and the insights look at every bill, not only the chosen window: a bill from four months ago can still be unpaid.
+    // Overdue and upcoming bills and the insights look beyond the chosen window: a bill from four months ago can still be unpaid, and
+    // one from last year can still need a check. `reportRows` returns those too, so nothing the report shows has changed.
+    const all = await this.bills.reportRows(orgId, keys[0] as string);
     const reportBills = all.map(toReport);
     const today = new Date(now.getTime() + ORG_UTC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
     const due = dueBills(all.map((bill) => ({ ...toReport(bill), bill })), today);

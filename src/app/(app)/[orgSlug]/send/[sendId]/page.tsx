@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MessageFrame } from "@/components/features/sends/message-frame";
 import { SendProgress } from "@/components/features/sends/send-progress";
@@ -6,6 +5,7 @@ import { periodLabel } from "@/constants/runs";
 import { cancelSendAction, processNextSendAction, retrySendAction } from "@/server/http/actions/send-actions";
 import { getSendDetail } from "@/server/http/queries/send-queries";
 import { requireOrg } from "@/server/http/session";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 export const metadata = { title: "Sent email" };
 // Each email is one server action call from this page; this is the time limit that applies to it.
@@ -18,7 +18,7 @@ export default async function SendPage({ params }: { params: Promise<{ orgSlug: 
   if (!send) notFound();
   return (
     <div className="max-w-3xl">
-      <p className="text-sm"><Link href={`/${orgSlug}/send`} className="underline underline-offset-4">All sent emails</Link></p>
+      <p className="text-sm"><TextLink href={`/${orgSlug}/send`}>All sent emails</TextLink></p>
       <h1 className="mt-2 font-serif text-4xl">{periodLabel(send.periodKey)}{send.isTest ? " (test)" : ""}</h1>
       <p className="mt-1 text-sm text-muted">{send.billCount} {send.billCount === 1 ? "bill" : "bills"} · {send.totalText} · {send.attachmentCount} PDF{send.attachmentCount === 1 ? "" : "s"} attached · from {send.fromAccount}</p>
       <div className="mt-6">

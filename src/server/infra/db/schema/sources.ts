@@ -18,6 +18,9 @@ export const sources = pgTable("sources", {
   passwordMode: text("password_mode").notNull().default("none"),
   passwordPattern: text("password_pattern"),
   passwordCiphertext: text("password_ciphertext"),
+  // Optional templates (src/lib/name-template.ts). Null means the built-in layout: Billfold folder / month / source, and a name made from the month and the original file.
+  fileNameTemplate: text("file_name_template"),
+  folderTemplate: text("folder_template"),
   createdBy: uuid("created_by").notNull().references(() => users.id),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

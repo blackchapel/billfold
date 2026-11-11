@@ -7,7 +7,7 @@ import { GmailSender, LiveMailSender, SmtpSender } from "@/server/infra/provider
 
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0xff, 0x00, 0x80, 0x0d, 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46]); // binary-safe
 const google: GoogleOAuthClient = {
-  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "" }),
+  isConfigured: () => true, authorizeUrl: () => "", exchangeCode: async () => ({ refreshToken: "", accountEmail: "", scopes: [] }),
   accessToken: async (_k, rt) => `access-for-${rt}`, revoke: async () => undefined,
 };
 

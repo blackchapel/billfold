@@ -1,10 +1,10 @@
 "use client";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
 import { useActionForm } from "@/hooks/use-action-form";
 import type { ActionState } from "@/types/action";
 import type { PlaceholderDto, TemplateDto } from "@/types/send";
+import { TextLink } from "@/components/features/shell/pending-link";
 
 type A = (p: ActionState | null, f: FormData) => Promise<ActionState>;
 const area = "min-h-24 rounded-md border border-line bg-surface px-3 py-2 text-sm";
@@ -30,7 +30,7 @@ export function TemplateForm({ action, template, placeholders, cancelHref }: { a
       </div>
       <div className="flex items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : template?.name ? "Save changes" : "Save template"}</Button>
-        {cancelHref && <Link href={cancelHref} className="text-sm underline underline-offset-4">Cancel</Link>}
+        {cancelHref && <TextLink href={cancelHref} className="text-sm">Cancel</TextLink>}
       </div>
       {error && <FormMessage>{error}</FormMessage>}
     </form>

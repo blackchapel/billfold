@@ -89,6 +89,9 @@ export interface SourceRecord {
   passwordMode: PasswordMode;
   passwordPattern: string | null;
   hasStaticPassword: boolean;
+  /** How filed PDFs are named and where they go; null means the built-in layout. */
+  fileNameTemplate: string | null;
+  folderTemplate: string | null;
   createdAt: Date;
 }
 
@@ -98,6 +101,8 @@ export interface SourceFields {
   matcher: SourceMatcher;
   passwordMode: PasswordMode;
   passwordPattern: string | null;
+  fileNameTemplate?: string | null;
+  folderTemplate?: string | null;
 }
 
 export interface RunConfigRecord {
@@ -271,6 +276,9 @@ export interface SendRecord {
   createdAt: Date;
   finishedAt: Date | null;
 }
+
+/** A send without its message text: the log lists many sends and only needs facts, not each email's whole HTML. */
+export type SendSummary = Omit<SendRecord, "bodyHtml" | "bodyText">;
 
 export type NewSend = Omit<SendRecord, "id" | "orgId" | "status" | "createdAt" | "finishedAt">;
 
