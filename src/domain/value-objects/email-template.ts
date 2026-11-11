@@ -32,7 +32,7 @@ export const BUILT_IN_TEMPLATE: EmailTemplateFields = {
   name: "Standard summary",
   subject: "Bills for {{month}}: {{total}} across {{bill_count}} bills",
   intro: "Hello,\n\nHere are the bills for {{month}}. The PDFs are attached.",
-  signoff: "Regards,\n{{sender}}",
+  signoff: "Regards,\n{{from_name}}",
 };
 
 export const SEND_LIMITS = {

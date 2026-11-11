@@ -59,4 +59,6 @@ export interface PreviewDto {
   attachments: { name: string }[];
   attachmentMegabytes: string;
   warnings: string[];
+  /** The sender as it will appear in the inbox; null until an account is chosen. */
+  from: { name: string; address: string } | null;
 }

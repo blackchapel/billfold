@@ -42,4 +42,7 @@ export const hasFullDriveAccess = (config: ConnectionConfig) => config.driveAcce
 
 /** The optional name a person gave to the person who owns a mail account ("Name on this account"); empty when none was set. */
 export const SENDER_NAME_MAX = 80;
+/** The name recipients see as the sender: the account's own name, else the person pressing Send, else the account's address. */
+export const fromDisplayName = (config: ConnectionConfig, pressedBy: string | null | undefined, accountEmail: string): string =>
+  connectionSenderName(config) || pressedBy?.trim() || accountEmail;
 export const connectionSenderName = (config: ConnectionConfig): string => (typeof config.senderName === "string" ? config.senderName.trim() : "");

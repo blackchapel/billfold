@@ -122,6 +122,8 @@ describe("PreviewSend and the composed email", () => {
     expect((await preview(w.smtp.id)).email.text).toContain("From o@example.com / o@example.com"); // nothing set: the person pressing Send
     await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "  Priya   Sharma " });
     expect((await preview(w.smtp.id)).email.text).toContain("From Priya Sharma / o@example.com");
+    expect((await preview(w.smtp.id)).from).toEqual({ name: "Priya Sharma", address: "send@example.com" }); // the preview shows the inbox sender too
+    expect((await preview(null)).from).toBeNull();
     expect((await preview(null)).email.text).toContain("From o@example.com / o@example.com"); // no account chosen yet
     const out = await w.send({ templateId: signed.id, attachPdfs: false, test: true });
     expect((await m.sendRepo.find(w.org.id, out.id))?.bodyText).toContain("From Priya Sharma"); // what is stored is what goes out

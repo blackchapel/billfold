@@ -272,6 +272,7 @@ test("F52 {{from_name}} in the wording is the name set on the account the email 
   await page.getByLabel("Wording").selectOption({ label: "Signed by account" });
   await page.getByRole("button", { name: "Preview the email" }).click();
   await expect(page.frameLocator('iframe[title="How the email will look"]').getByText("Sent by Priya Sharma")).toBeVisible();
+  await expect(page.getByTestId("preview-from")).toHaveText("Priya Sharma <send@example.com>");
 
   // Clearing the name falls back to the person pressing Send.
   await page.goto(`${BASE}/connections`);
@@ -284,4 +285,5 @@ test("F52 {{from_name}} in the wording is the name set on the account the email 
   await page.getByLabel("Wording").selectOption({ label: "Signed by account" });
   await page.getByRole("button", { name: "Preview the email" }).click();
   await expect(page.frameLocator('iframe[title="How the email will look"]').getByText(/Sent by (?!Priya)/)).toBeVisible();
+  await expect(page.getByTestId("preview-from")).not.toContainText("Priya");
 });

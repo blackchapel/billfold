@@ -109,6 +109,7 @@ export function ComposeForm({ orgSlug, options, start, preview, initialPeriod }:
       {shown && (
         <section aria-label="Preview" className="flex flex-col gap-3 border-t border-line pt-5">
           <h2 className="font-serif text-2xl">Preview</h2>
+          {shown.from && <p className="text-sm"><span className="text-muted">From: </span><span data-testid="preview-from" className="font-medium">{shown.from.name} &lt;{shown.from.address}&gt;</span></p>}
           <p className="text-sm"><span className="text-muted">Subject: </span><span data-testid="preview-subject" className="font-medium">{shown.subject}</span></p>
           <p className="text-xs text-muted">
             {shown.billCount} {shown.billCount === 1 ? "bill" : "bills"} · {shown.totalText} · {shown.templateName}

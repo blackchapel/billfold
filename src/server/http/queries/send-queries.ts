@@ -43,7 +43,7 @@ export function toPreviewDto(p: Composed): PreviewDto {
   return {
     subject: p.email.subject, html: p.email.html, billCount: p.billCount, templateName: p.templateName,
     totalText: formatMoney({ minor: p.totalMinor, currency: INR }),
-    attachments: p.files.map((f) => ({ name: f.name })), attachmentMegabytes: (p.attachmentBytes / 1048576).toFixed(1), warnings: p.warnings,
+    attachments: p.files.map((f) => ({ name: f.name })), attachmentMegabytes: (p.attachmentBytes / 1048576).toFixed(1), warnings: p.warnings, from: p.from,
   };
 }
 

@@ -2,7 +2,7 @@ import { periodLabel } from "@/constants/runs";
 import { DomainError } from "@/domain/errors/domain-error";
 import type { BillRepository, ConnectionRepository, OrgRepository, TemplateRepository, UserRepository } from "@/domain/ports/repositories";
 import type { BillFileRecord, BillRecord } from "@/domain/ports/records";
-import { connectionSenderName } from "@/domain/value-objects/connection";
+import { connectionSenderName, fromDisplayName } from "@/domain/value-objects/connection";
 import { INR, currencyByCode } from "@/domain/value-objects/currency";
 import { BUILT_IN_TEMPLATE, SEND_LIMITS, fillPlaceholders, type EmailTemplateFields } from "@/domain/value-objects/email-template";
 import { Money } from "@/domain/value-objects/money";
@@ -20,6 +20,8 @@ export interface Composed {
   files: BillFileRecord[];
   attachmentBytes: number;
   warnings: string[];
+  /** How the sender will appear in the inbox; null until an account is chosen. */
+  from: { name: string; address: string } | null;
 }
 
 /** Builds the finished message for a month: pure reads, shared by the preview and the real send so they can never differ. */
@@ -70,7 +72,8 @@ export class SendComposer {
       })),
       totalText: values.total, unpaidText: values.unpaid_total, attachmentNames: files.map((f) => f.name),
     });
-    return { email, templateName: template.name, billCount: bills.length, totalMinor: total, files, attachmentBytes, warnings };
+    return { email, templateName: template.name, billCount: bills.length, totalMinor: total, files, attachmentBytes, warnings,
+      from: from && (from.kind === "gmail" || from.kind === "smtp") ? { name: fromDisplayName(from.config, sender?.name, from.accountEmail), address: from.accountEmail } : null };
   }
 
   private async pickTemplate(orgId: string, id: string | null): Promise<EmailTemplateFields> {

@@ -8,7 +8,7 @@ describe("template placeholders", () => {
   it("fills known placeholders, with or without spaces and in any case, and leaves the rest alone", () => {
     expect(fillPlaceholders("Bills for {{month}} ({{ total }}) {{BILL_COUNT}} {{nope}}", values)).toBe("Bills for October 2026 (₹3,544.50) 2 {{nope}}");
     expect(fillPlaceholders(BUILT_IN_TEMPLATE.subject, values)).toBe("Bills for October 2026: ₹3,544.50 across 2 bills");
-    expect(fillPlaceholders(BUILT_IN_TEMPLATE.signoff, values)).toBe("Regards,\nAsha");
+    expect(fillPlaceholders(BUILT_IN_TEMPLATE.signoff, values)).toBe("Regards,\nRavi"); // the built-in wording signs with the sending account's name
   });
   it("never evaluates anything and treats values as text", () => {
     expect(fillPlaceholders("{{sender}}", { ...values, sender: "{{month}} <b>x</b> ${1+1}" })).toBe("{{month}} <b>x</b> ${1+1}");
