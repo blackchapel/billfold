@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const serif = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", display: "swap" });
@@ -20,7 +21,10 @@ export const viewport: Viewport = { themeColor: [{ media: "(prefers-color-scheme
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        {children}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
