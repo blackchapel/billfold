@@ -41,22 +41,46 @@ for (const c of CASES) {
   });
 }
 
-test("F42 the loading skeleton shimmers with transform only, and stands still for people who ask for less motion", async ({ page, browser }) => {
+test("F42 every skeleton bar shimmers on its own with transform only, the gaps between bars stay still, and reduced motion stops it", async ({ page, browser }) => {
+  test.setTimeout(60_000);
   await page.goto("/test-skeleton");
-  await expect(page.locator(".shimmer")).toHaveCount(2);
-  const animated = await page.evaluate(() => document.getAnimations()
-    .filter((a) => (a as CSSAnimation).animationName === "shimmer")
-    .map((a) => (a.effect as KeyframeEffect).getKeyframes().flatMap((k) => Object.keys(k)).filter((p) => !["offset", "easing", "composite", "computedOffset"].includes(p))));
-  expect(animated).toHaveLength(2); // one moving band per skeleton, however many blocks it has
-  for (const props of animated) expect([...new Set(props)]).toEqual(["transform"]);
-  await expect(page.getByRole("status")).toHaveCount(2);
-  await expect(page.getByRole("status").first()).toContainText("Loading…");
+  const bars = page.locator(".skeleton");
+  const count = await bars.count();
+  expect(count).toBeGreaterThan(10);
+  await expect(page.locator(".shimmer")).toHaveCount(0); // no overlay across the whole frame
+
+  // One animation per bar, on the bar's own highlight, moving nothing but transform; the bar clips it.
+  const animations = await page.evaluate(() => document.getAnimations()
+    .filter((a) => (a as CSSAnimation).animationName === "skeleton-wave")
+    .map((a) => {
+      const effect = a.effect as KeyframeEffect;
+      const props = effect.getKeyframes().flatMap((k) => Object.keys(k)).filter((p) => !["offset", "easing", "composite", "computedOffset"].includes(p));
+      return { pseudo: effect.pseudoElement, onBar: (effect.target as Element).classList.contains("skeleton"), props: [...new Set(props)] };
+    }));
+  expect(animations).toHaveLength(count);
+  for (const a of animations) expect(a).toEqual({ pseudo: "::after", onBar: true, props: ["transform"] });
+  expect(await page.evaluate(() => [...document.querySelectorAll(".skeleton")].every((el) => getComputedStyle(el).overflow === "hidden"))).toBe(true);
+
+  // Pixels over a few sweeps: the empty space beside the title bar never changes; the title bar itself does.
+  const box = await bars.first().boundingBox();
+  if (!box) throw new Error("the first skeleton bar has no box");
+  const gap = { x: box.x + box.width + 16, y: box.y, width: 120, height: box.height };
+  const inside = { x: box.x, y: box.y, width: box.width, height: box.height };
+  const gaps: Buffer[] = [];
+  const insides: Buffer[] = [];
+  for (let i = 0; i < 8; i++) {
+    gaps.push(await page.screenshot({ clip: gap }));
+    insides.push(await page.screenshot({ clip: inside }));
+    await page.waitForTimeout(200);
+  }
+  expect(gaps.every((g) => g.equals(gaps[0] as Buffer))).toBe(true); // the highlight never leaves its bar
+  expect(insides.some((b) => !b.equals(insides[0] as Buffer))).toBe(true); // and the bar really does shimmer
 
   const calm = await browser.newContext({ reducedMotion: "reduce", baseURL: "http://localhost:3100" });
   const cp = await calm.newPage();
   await cp.goto("/test-skeleton");
-  await expect(cp.locator(".shimmer")).toHaveCount(2);
-  expect(await cp.evaluate(() => document.getAnimations().filter((a) => (a as CSSAnimation).animationName === "shimmer").length)).toBe(0);
+  expect(await cp.locator(".skeleton").count()).toBe(count);
+  expect(await cp.evaluate(() => document.getAnimations().filter((a) => (a as CSSAnimation).animationName === "skeleton-wave").length)).toBe(0);
   await calm.close();
 });
 

@@ -17,7 +17,7 @@ test("F36 the front page explains Billfold to a stranger and points at sign-in, 
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByText(/By signing in you agree to the terms/)).toBeVisible();
   await page.getByRole("link", { name: "privacy page" }).click();
-  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page).toHaveURL(/\/privacy$/, { timeout: 20_000 }); // the first visit compiles the page in the dev server
 });
 
 test("F37 the privacy policy and terms are public, complete and honest about Google data", async ({ page }) => {
