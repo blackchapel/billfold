@@ -1,14 +1,15 @@
 import { periodLabel } from "@/constants/runs";
 import { DomainError } from "@/domain/errors/domain-error";
-import type { BillRepository, OrgRepository, TemplateRepository, UserRepository } from "@/domain/ports/repositories";
+import type { BillRepository, ConnectionRepository, OrgRepository, TemplateRepository, UserRepository } from "@/domain/ports/repositories";
 import type { BillFileRecord, BillRecord } from "@/domain/ports/records";
+import { connectionSenderName } from "@/domain/value-objects/connection";
 import { INR, currencyByCode } from "@/domain/value-objects/currency";
 import { BUILT_IN_TEMPLATE, SEND_LIMITS, fillPlaceholders, type EmailTemplateFields } from "@/domain/value-objects/email-template";
 import { Money } from "@/domain/value-objects/money";
 import { renderSummaryEmail, type RenderedEmail } from "@/domain/value-objects/summary-email";
 import { formatMoney } from "@/lib/format-money";
 
-export interface ComposeInput { actorId: string; orgId: string; periodKey: string; templateId: string | null; attachPdfs: boolean }
+export interface ComposeInput { actorId: string; orgId: string; periodKey: string; templateId: string | null; attachPdfs: boolean; /** The account the email goes out from; fills {{from_name}}. */ connectionId?: string | null }
 
 export interface Composed {
   email: RenderedEmail;
@@ -28,12 +29,14 @@ export class SendComposer {
     private readonly templates: TemplateRepository,
     private readonly orgs: OrgRepository,
     private readonly users: UserRepository,
+    private readonly connections: ConnectionRepository,
   ) {}
 
   async compose(input: ComposeInput): Promise<Composed> {
     const org = (await this.orgs.listAll()).find((o) => o.id === input.orgId);
     if (!org) throw new DomainError("not_found", "Organisation not found");
     const sender = await this.users.findById(input.actorId);
+    const from = input.connectionId ? await this.connections.find(input.orgId, input.connectionId) : null;
     const template = await this.pickTemplate(input.orgId, input.templateId);
     const bills = (await this.bills.list(input.orgId, { periodKey: input.periodKey, deleted: "exclude" }));
     if (bills.length === 0) throw new DomainError("validation", `There are no bills for ${periodLabel(input.periodKey)} to send.`);
@@ -54,7 +57,10 @@ export class SendComposer {
     const values = {
       month: periodLabel(input.periodKey), org: org.name, total: money(total), bill_count: String(bills.length),
       unpaid_total: money(unpaid), sender: sender?.name?.trim() || sender?.email || org.name,
+      from_name: "",
     };
+    // The name set on the sending account; when none was set, the person pressing Send, so the sign-off is never blank.
+    values.from_name = (from && (from.kind === "gmail" || from.kind === "smtp") ? connectionSenderName(from.config) : "") || values.sender;
     const email = renderSummaryEmail({
       orgName: org.name, periodLabel: values.month, subject: fillPlaceholders(template.subject, values),
       intro: fillPlaceholders(template.intro, values), signoff: fillPlaceholders(template.signoff, values),

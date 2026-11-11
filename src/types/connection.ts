@@ -11,4 +11,6 @@ export interface ConnectionDto {
   lastError: string | null;
   /** A Google Drive connected before full Drive access was asked for: it works, but cannot use folders that already exist. */
   needsMorePermission: boolean;
+  /** "Name on this account" for Gmail and SMTP connections; empty when not set. */
+  senderName: string;
 }

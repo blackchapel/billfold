@@ -3,6 +3,7 @@ import type { AuditLogRepository, BillRepository, ConnectionRepository, Recipien
 import type { SendCounts, SendItemRecord, SendRecord, SendStatus, SendSummary } from "@/domain/ports/records";
 import type { Clock, DriveStore, MailSender, RateLimiter, SecretBox } from "@/domain/ports/services";
 import { SEND_LIMITS } from "@/domain/value-objects/email-template";
+import { connectionSenderName } from "@/domain/value-objects/connection";
 import { errorFields, logEvent } from "@/lib/log";
 import type { AuthorizationService } from "./authorization";
 import type { Composed, SendComposer } from "./send-composer";
@@ -11,7 +12,7 @@ export const MAX_SEND_ATTEMPTS = 3;
 export const SENDS_PER_HOUR = 10;
 const STALE_AFTER_MS = 5 * 60_000;
 
-export interface SendOptions { periodKey: string; templateId: string | null; attachPdfs: boolean }
+export interface SendOptions { periodKey: string; templateId: string | null; attachPdfs: boolean; /** The account chosen to send from; fills {{from_name}} in the preview. */ connectionId?: string | null }
 
 /** What the Send screen shows before anything leaves: the finished email, what is attached, and anything worth a second look. */
 export class PreviewSend {
@@ -151,7 +152,7 @@ export class ProcessNextSendItem {
     }
     await this.mailer.send({
       kind: connection.kind, config: connection.config, secretJson: await this.secrets.decrypt(orgId, cipher),
-      from: connection.accountEmail, fromName: sender?.name?.trim() || connection.accountEmail,
+      from: connection.accountEmail, fromName: connectionSenderName(connection.config) || sender?.name?.trim() || connection.accountEmail, // the account's own name first, as a mail app shows it
       to: { name: item.recipientName, email: item.recipientEmail },
       subject: send.subject, text: send.bodyText, html: send.bodyHtml, attachments,
     });

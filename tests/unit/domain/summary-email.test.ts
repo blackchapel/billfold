@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BUILT_IN_TEMPLATE, fillPlaceholders, unknownPlaceholders, type TemplatePlaceholder } from "@/domain/value-objects/email-template";
 import { cleanSubject, escapeHtml, renderSummaryEmail, type SummaryEmailInput } from "@/domain/value-objects/summary-email";
 
-const values: Record<TemplatePlaceholder, string> = { month: "October 2026", org: "Sharma Home", total: "₹3,544.50", bill_count: "2", unpaid_total: "₹1,234.50", sender: "Asha" };
+const values: Record<TemplatePlaceholder, string> = { month: "October 2026", org: "Sharma Home", total: "₹3,544.50", bill_count: "2", unpaid_total: "₹1,234.50", sender: "Asha", from_name: "Ravi" };
 
 describe("template placeholders", () => {
   it("fills known placeholders, with or without spaces and in any case, and leaves the rest alone", () => {

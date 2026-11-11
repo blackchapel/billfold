@@ -7,6 +7,7 @@ import { CompleteGoogleConnect } from "@/server/application/google-connect";
 import { CreateOrg } from "@/server/application/create-org";
 import { DeleteTemplate, SaveTemplate, SetDefaultTemplate } from "@/server/application/email-templates";
 import { DeleteRecipient, ListRecipients, SaveRecipient } from "@/server/application/recipients";
+import { SetConnectionSenderName } from "@/server/application/connections";
 import { SendComposer } from "@/server/application/send-composer";
 import { CancelSend, PreviewSend, ProcessNextSendItem, ReadSends, RetrySendItems, StartSend } from "@/server/application/sends";
 import { Memory } from "../../fakes/memory";
@@ -44,7 +45,7 @@ async function world() {
   const saveRecipient = new SaveRecipient(m.recipientRepo, authz(), m.auditRepo);
   const asha = await saveRecipient.execute({ actorId: owner.id, orgId: org.id, name: "Asha", email: "Asha@Example.com" });
   const ravi = await saveRecipient.execute({ actorId: owner.id, orgId: org.id, name: "Ravi", email: "ravi@example.com" });
-  const composer = new SendComposer(m.billRepo, m.templateRepo, m.orgRepo, m.userRepo);
+  const composer = new SendComposer(m.billRepo, m.templateRepo, m.orgRepo, m.userRepo, m.connectionRepo);
   const start = new StartSend(composer, m.sendRepo, m.sendItemRepo, m.recipientRepo, m.connectionRepo, m.userRepo, authz(), m.limiter, m.auditRepo);
   const process = new ProcessNextSendItem(m.sendRepo, m.sendItemRepo, m.billRepo, m.connectionRepo, m.userRepo, authz(), m.secretBox, m.driveStore, m.mailSender, m.clock);
   const send = (over: Partial<Parameters<StartSend["execute"]>[0]> = {}) =>
@@ -112,6 +113,43 @@ describe("PreviewSend and the composed email", () => {
     expect(out.email.html).toContain("Home &lt;b&gt;");
     expect(out.email.html).not.toContain("<script>");
     expect(out.warnings.join(" ")).toMatch(/1 bill still needs a check/);
+  });
+  it("fills {{from_name}} with the name set on the sending account, else with the sender", async () => {
+    const w = await world();
+    const setName = new SetConnectionSenderName(m.connectionRepo, authz(), m.auditRepo);
+    const signed = await new SaveTemplate(m.templateRepo, authz(), m.auditRepo).execute({ actorId: w.owner.id, orgId: w.org.id, name: "Signed", subject: "Bills", intro: "Hi", signoff: "From {{from_name}} / {{sender}}" });
+    const preview = (connectionId: string | null) => new PreviewSend(w.composer, authz()).execute({ actorId: w.owner.id, orgId: w.org.id, periodKey: "2026-10", templateId: signed.id, attachPdfs: false, connectionId });
+    expect((await preview(w.smtp.id)).email.text).toContain("From o@example.com / o@example.com"); // nothing set: the person pressing Send
+    await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "  Priya   Sharma " });
+    expect((await preview(w.smtp.id)).email.text).toContain("From Priya Sharma / o@example.com");
+    expect((await preview(null)).email.text).toContain("From o@example.com / o@example.com"); // no account chosen yet
+    const out = await w.send({ templateId: signed.id, attachPdfs: false, test: true });
+    expect((await m.sendRepo.find(w.org.id, out.id))?.bodyText).toContain("From Priya Sharma"); // what is stored is what goes out
+    await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "" });
+    expect((await preview(w.smtp.id)).email.text).toContain("From o@example.com / o@example.com");
+  });
+  it("shows the sending account's own name as the sender in the inbox, else the person pressing Send, else the address", async () => {
+    const w = await world();
+    const sendOne = async () => { m.outbox.length = 0; const s = await w.send({ attachPdfs: false, recipientIds: [w.asha.id] }); await w.drain(s.id); return m.outbox[0]?.fromName; };
+    expect(await sendOne()).toBe("send@example.com"); // no name anywhere: the account address
+    m.users.set(w.owner.id, { ...(m.users.get(w.owner.id) as NonNullable<ReturnType<typeof m.users.get>>), name: "Ravi Kumar" });
+    expect(await sendOne()).toBe("Ravi Kumar"); // no account name: the person pressing Send
+    const setName = new SetConnectionSenderName(m.connectionRepo, authz(), m.auditRepo);
+    await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "Priya Sharma" });
+    expect(await sendOne()).toBe("Priya Sharma"); // the account's name wins, whoever presses Send
+  });
+  it("only managers name an account, only mail-sending accounts have a name, and bad names are refused", async () => {
+    const w = await world();
+    const setName = new SetConnectionSenderName(m.connectionRepo, authz(), m.auditRepo);
+    const base = { orgId: w.org.id, connectionId: w.smtp.id, name: "Priya" };
+    await expectCode(setName.execute({ ...base, actorId: w.viewer.id }), "forbidden");
+    await expectCode(setName.execute({ ...base, actorId: w.stranger.id }), "not_found");
+    await expectCode(setName.execute({ ...base, actorId: w.owner.id, connectionId: w.drive.id }), "validation");
+    await expectCode(setName.execute({ ...base, actorId: w.owner.id, name: "x".repeat(81) }), "validation");
+    await expectCode(setName.execute({ ...base, actorId: w.owner.id, name: "<b>Priya</b>" }), "validation");
+    await setName.execute({ ...base, actorId: w.owner.id });
+    expect(m.audit.at(-1)).toMatchObject({ action: "connection.sender_name_set" });
+    expect((await m.connectionRepo.find(w.org.id, w.smtp.id))?.config).toMatchObject({ senderName: "Priya", host: "smtp.example.com" }); // the rest of the settings stay
   });
   it("never puts a bill's internal note (such as the reader's fallback remark) in the email", async () => {
     const w = await world();

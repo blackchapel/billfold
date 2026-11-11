@@ -3,7 +3,7 @@ import type { AuditLogRepository, ConnectionRepository, ConnectionUsage } from "
 import type { ConnectionRecord } from "@/domain/ports/records";
 import type { Clock, ConnectionProbe, GoogleOAuthClient, ProbeResult, SecretBox } from "@/domain/ports/services";
 import { normalizeEmail } from "@/domain/value-objects/email-address";
-import { isGoogleKind, type MailServerKind } from "@/domain/value-objects/connection";
+import { isGoogleKind, SENDER_NAME_MAX, type MailServerKind } from "@/domain/value-objects/connection";
 import type { AuthorizationService } from "./authorization";
 
 export interface MailAccountInput {
@@ -133,6 +133,32 @@ export class UpdateMailPassword {
     await this.repo.replaceSecret(input.orgId, connection.id, await this.secrets.encrypt(input.orgId, secretJson));
     await this.repo.recordCheck(input.orgId, connection.id, { status: "active", error: null, at: this.clock.now() });
     await this.audit.record({ orgId: input.orgId, actorUserId: input.actorId, action: "connection.password_updated", entityType: "connection", entityId: connection.id, metadata: { kind: connection.kind, account: connection.accountEmail } });
+  }
+}
+
+/**
+ * Saves "Name on this account" for a Gmail or SMTP connection: the name that `{{from_name}}` fills in on summary emails.
+ * Billfold cannot read it from the account (it asks Google only for the email address), so a person types it. Empty clears it.
+ */
+export class SetConnectionSenderName {
+  constructor(
+    private readonly repo: ConnectionRepository,
+    private readonly authz: AuthorizationService,
+    private readonly audit: AuditLogRepository,
+  ) {}
+
+  async execute(input: { actorId: string; orgId: string; connectionId: string; name: string }): Promise<void> {
+    await this.authz.require(input.actorId, input.orgId, "connections.manage");
+    const connection = await this.repo.find(input.orgId, input.connectionId);
+    if (!connection) throw new DomainError("not_found", "Connection not found");
+    if (connection.kind !== "gmail" && connection.kind !== "smtp") throw new DomainError("validation", "Only accounts that send mail have a name.");
+    const name = input.name.replace(/\s+/g, " ").trim();
+    if (name.length > SENDER_NAME_MAX) throw new DomainError("validation", `The name must be ${SENDER_NAME_MAX} characters or fewer.`);
+    if (/[\u0000-\u001f\u007f<>]/.test(name)) throw new DomainError("validation", "The name cannot contain brackets or control characters.");
+    const rest = { ...connection.config };
+    delete rest.senderName;
+    await this.repo.setConfig(input.orgId, connection.id, name ? { ...rest, senderName: name } : rest);
+    await this.audit.record({ orgId: input.orgId, actorUserId: input.actorId, action: "connection.sender_name_set", entityType: "connection", entityId: connection.id, metadata: { kind: connection.kind, cleared: name === "" } });
   }
 }
 

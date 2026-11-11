@@ -92,6 +92,7 @@ export class Memory {
     findByAccount: async (o, k, e) => { const c = [...this.connections.values()].find((x) => x.orgId === o && x.kind === k && x.accountEmail === e); return c ? this.publicView(c) : null; },
     findSecret: async (o, id) => { const c = this.connections.get(id); return c && c.orgId === o ? c.secret : null; },
     replaceSecret: async (o, id, secret, config) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.secret = secret; c.status = "active"; c.lastError = null; if (config) c.config = config; } },
+    setConfig: async (o, id, config) => { const c = this.connections.get(id); if (c && c.orgId === o) c.config = config; },
     recordCheck: async (o, id, r) => { const c = this.connections.get(id); if (c && c.orgId === o) { c.status = r.status; c.lastError = r.error; c.lastCheckedAt = r.at; } },
     remove: async (o, id) => { const c = this.connections.get(id); if (c && c.orgId === o) this.connections.delete(id); },
   };

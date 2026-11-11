@@ -39,3 +39,7 @@ export function driveAccessFromScopes(scopes: readonly string[]): "full" | "file
 }
 
 export const hasFullDriveAccess = (config: ConnectionConfig) => config.driveAccess === "full";
+
+/** The optional name a person gave to the person who owns a mail account ("Name on this account"); empty when none was set. */
+export const SENDER_NAME_MAX = 80;
+export const connectionSenderName = (config: ConnectionConfig): string => (typeof config.senderName === "string" ? config.senderName.trim() : "");

@@ -64,3 +64,12 @@ export async function updateMailPasswordAction(slug: string, connectionId: strin
   revalidatePath(`/${slug}/connections`);
   return result;
 }
+
+export async function setConnectionSenderNameAction(slug: string, connectionId: string, _prev: ActionState | null, form: FormData): Promise<ActionState> {
+  const { user, membership } = await requireOrgFresh(slug);
+  const name = z.string().max(200).safeParse(form.get("senderName") ?? "");
+  if (!name.success) return { ok: false, message: "Check the name and try again.", code: "validation" };
+  const result = await runAction(async () => { await container().setConnectionSenderName.execute({ actorId: user.id, orgId: membership.orgId, connectionId, name: name.data }); });
+  revalidatePath(`/${slug}/connections`);
+  return result;
+}
