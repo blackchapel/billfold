@@ -53,7 +53,7 @@ export const SPECS = {
     plain: ["list", "find", "findByAccount", "findSecret"],
     writes: {
       create: async ({ args, cache }) => cache.bump((args[0] as { orgId: string }).orgId, ["connections"]),
-      replaceSecret: bump("connections"), recordCheck: bump("connections"), remove: bump("connections"),
+      replaceSecret: bump("connections"), setConfig: bump("connections"), recordCheck: bump("connections"), remove: bump("connections"),
     },
   } satisfies Spec<ConnectionRepository>,
   usage: { plain: ["namesUsing"], writes: {} } satisfies Spec<ConnectionUsage>,

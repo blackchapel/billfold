@@ -134,6 +134,11 @@ run("repositories (real Postgres)", () => {
     expect((await repo.find(a.id, c.id))?.status).toBe("needs_attention");
     await repo.replaceSecret(a.id, c.id, cipher);
     expect((await repo.find(a.id, c.id))).toMatchObject({ status: "active", lastError: null });
+    await repo.setConfig(b.id, c.id, { host: "evil" }); // wrong org: must not change
+    expect((await repo.find(a.id, c.id))?.config).toEqual({ host: "imap.example.com", port: 993 });
+    await repo.setConfig(a.id, c.id, { host: "imap.example.com", port: 993, senderName: "Priya" });
+    expect((await repo.find(a.id, c.id))).toMatchObject({ status: "active", config: { senderName: "Priya" } }); // the secret and status are untouched
+    expect(JSON.parse(await box.decrypt(a.id, (await repo.findSecret(a.id, c.id)) ?? ""))).toEqual({ password: "hunter2-app" });
     await repo.remove(b.id, c.id); // wrong org: must not delete
     expect(await repo.find(a.id, c.id)).not.toBeNull();
     await repo.remove(a.id, c.id);

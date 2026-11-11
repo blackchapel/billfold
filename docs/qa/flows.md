@@ -57,6 +57,7 @@ Add or update a flow in the same commit as the feature that changes it.
 | F48 | A change in one session shows in another: recipient added; viewer promoted and demoted | Visible at once after reload; permissions follow the role change at once | phase9.spec.ts |
 | F49 | Settings > Cache > Clear the cache (and as a viewer) | Confirmation shown; data still there; viewer has no button | phase9.spec.ts |
 | F50 | The test-only endpoints | Answer in test mode (they answer 404 elsewhere) | phase9.spec.ts |
+| F52 | Connections > Name on this account; Send > Preview with a closing text using `{{from_name}}` | Bad names refused; the name shows in the preview; clearing it falls back to the sender | phase9.spec.ts |
 | F51 | Bills > Delete (typed-in bill, then an emailed bill) | Typed-in bill: one plain delete, Keep leaves it. Emailed bill: two choices; "file it again" removes it for good and the next run files it again | phase9.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 

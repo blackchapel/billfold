@@ -14,6 +14,7 @@ const optionsSchema = z.object({
   templateId: z.string().uuid().or(z.literal("")).transform((v) => v || null),
   attachPdfs: z.boolean(),
 });
+const previewSchema = optionsSchema.extend({ connectionId: z.string().uuid().or(z.literal("")).transform((v) => v || null) });
 const startSchema = optionsSchema.extend({
   connectionId: z.string().uuid("Choose the account to send from."),
   recipientIds: z.array(z.string().uuid()),
@@ -27,7 +28,7 @@ const readOptions = (form: FormData) => ({ periodKey: form.get("periodKey"), tem
 /** Builds the finished email exactly as it would go out, without sending anything. */
 export async function previewSendAction(slug: string, form: FormData): Promise<ActionState<PreviewDto>> {
   const { user, membership } = await requireOrgFresh(slug);
-  const parsed = optionsSchema.safeParse(readOptions(form));
+  const parsed = previewSchema.safeParse({ ...readOptions(form), connectionId: form.get("connectionId") ?? "" });
   if (!parsed.success) return invalid(parsed.error.issues[0]?.message);
   return runAction(async () => toPreviewDto(await container().previewSend.execute({ actorId: user.id, orgId: membership.orgId, ...parsed.data })));
 }

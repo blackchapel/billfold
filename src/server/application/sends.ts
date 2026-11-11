@@ -11,7 +11,7 @@ export const MAX_SEND_ATTEMPTS = 3;
 export const SENDS_PER_HOUR = 10;
 const STALE_AFTER_MS = 5 * 60_000;
 
-export interface SendOptions { periodKey: string; templateId: string | null; attachPdfs: boolean }
+export interface SendOptions { periodKey: string; templateId: string | null; attachPdfs: boolean; /** The account chosen to send from; fills {{from_name}} in the preview. */ connectionId?: string | null }
 
 /** What the Send screen shows before anything leaves: the finished email, what is attached, and anything worth a second look. */
 export class PreviewSend {

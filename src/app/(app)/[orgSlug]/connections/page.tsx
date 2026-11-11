@@ -1,7 +1,7 @@
 import { ConnectionRowActions } from "@/components/features/connections/connection-row-actions";
 import { ConnectionList } from "@/components/features/connections/connection-list";
 import { MailAccountForm } from "@/components/features/connections/mail-account-form";
-import { addMailAccountAction, removeConnectionAction, testConnectionAction, updateMailPasswordAction } from "@/server/http/actions/connection-actions";
+import { addMailAccountAction, removeConnectionAction, setConnectionSenderNameAction, testConnectionAction, updateMailPasswordAction } from "@/server/http/actions/connection-actions";
 import { googleAvailability, listConnections } from "@/server/http/queries/connection-queries";
 import { requireOrg } from "@/server/http/session";
 
@@ -32,6 +32,7 @@ export default async function Connections({ params, searchParams }: {
           <ConnectionRowActions label={c.label}
             reconnectHref={c.kind === "google_drive" || c.kind === "gmail" ? start(c.kind) : undefined}
             updatePassword={c.kind === "imap" || c.kind === "smtp" ? updateMailPasswordAction.bind(null, orgSlug, c.id) as never : undefined}
+            senderName={c.kind === "gmail" || c.kind === "smtp" ? { action: setConnectionSenderNameAction.bind(null, orgSlug, c.id) as never, current: c.senderName } : undefined}
             test={testConnectionAction.bind(null, orgSlug, c.id) as never} remove={removeConnectionAction.bind(null, orgSlug, c.id) as never} />
         )} />
       </section>
@@ -40,7 +41,7 @@ export default async function Connections({ params, searchParams }: {
         <>
           <section className="mt-10 border-t border-line pt-6">
             <h2 className="font-serif text-2xl">Connect with Google</h2>
-            <p className="mt-1 text-sm text-muted">You will be sent to Google to approve access. Billfold only sees files it creates in Drive, and Gmail is used to read bills and send summaries.</p>
+            <p className="mt-1 text-sm text-muted">You will be sent to Google to approve access. Drive is used to find or create the folders you name and to file bills in them, and Gmail is used to read bills and send summaries.</p>
             <div className="mt-4 flex flex-wrap gap-3">
               {([["google_drive", "Connect Google Drive"], ["gmail", "Connect Gmail"]] as const).map(([kind, label]) => (
                 google[kind]

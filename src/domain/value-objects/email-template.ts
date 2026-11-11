@@ -1,5 +1,5 @@
 /** The words a template may use between double curly brackets, e.g. "Bills for {{month}}". */
-export const TEMPLATE_PLACEHOLDERS = ["month", "org", "total", "bill_count", "unpaid_total", "sender"] as const;
+export const TEMPLATE_PLACEHOLDERS = ["month", "org", "total", "bill_count", "unpaid_total", "sender", "from_name"] as const;
 export type TemplatePlaceholder = (typeof TEMPLATE_PLACEHOLDERS)[number];
 
 export const PLACEHOLDER_HELP: Record<TemplatePlaceholder, string> = {
@@ -8,7 +8,8 @@ export const PLACEHOLDER_HELP: Record<TemplatePlaceholder, string> = {
   total: "the total of the bills, e.g. ₹12,345.00",
   bill_count: "how many bills",
   unpaid_total: "the part not marked paid yet",
-  sender: "the name of the person sending",
+  sender: "the name of the person pressing Send",
+  from_name: "the name set on the mail account you send from (falls back to the sender)",
 };
 
 const PLACEHOLDER = /\{\{\s*([a-z_]+)\s*\}\}/gi;

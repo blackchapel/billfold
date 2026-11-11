@@ -48,6 +48,10 @@ export class DrizzleConnectionRepository implements ConnectionRepository {
       .where(and(eq(connections.orgId, orgId), eq(connections.id, id)));
   }
 
+  async setConfig(orgId: string, id: string, config: ConnectionConfig) {
+    await this.db.update(connections).set({ config }).where(and(eq(connections.orgId, orgId), eq(connections.id, id)));
+  }
+
   async recordCheck(orgId: string, id: string, result: { status: ConnectionStatus; error: string | null; at: Date }) {
     await this.db.update(connections).set({ status: result.status, lastError: result.error, lastCheckedAt: result.at })
       .where(and(eq(connections.orgId, orgId), eq(connections.id, id)));
