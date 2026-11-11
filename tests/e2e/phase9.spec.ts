@@ -245,3 +245,43 @@ test("F51 Delete asks what to do: hide it for good, or remove it so the next run
   await page.goto(`${BASE}/bills`);
   await expect(row("Power")).toHaveCount(before);
 });
+
+test("F52 {{from_name}} in the wording is the name set on the account the email goes out from", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, "owner@example.com");
+  await page.goto(`${BASE}/templates/new`);
+  await page.getByLabel("Template name").fill("Signed by account");
+  await page.getByLabel("Closing text").fill("Sent by {{from_name}}");
+  await page.getByRole("button", { name: "Save template" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+
+  await page.goto(`${BASE}/connections`);
+  const row = page.locator("li", { hasText: "Summary sender" });
+  await row.getByText("Name on this account", { exact: false }).first().click();
+  await row.getByLabel("Name on this account").fill("<b>Priya</b>");
+  await row.getByRole("button", { name: "Save name" }).click();
+  await expect(row.getByText("cannot contain brackets")).toBeVisible();
+  await row.getByLabel("Name on this account").fill("Priya Sharma");
+  await row.getByRole("button", { name: "Save name" }).click();
+  await expect(row.getByText("Saved.")).toBeVisible();
+  await page.reload();
+  await expect(row.getByText("Name on this account: Priya Sharma")).toBeVisible();
+
+  await page.goto(`${BASE}/send`);
+  await page.getByLabel("Month").selectOption({ index: 0 });
+  await page.getByLabel("Wording").selectOption({ label: "Signed by account" });
+  await page.getByRole("button", { name: "Preview the email" }).click();
+  await expect(page.frameLocator('iframe[title="How the email will look"]').getByText("Sent by Priya Sharma")).toBeVisible();
+
+  // Clearing the name falls back to the person pressing Send.
+  await page.goto(`${BASE}/connections`);
+  await row.getByText("Name on this account", { exact: false }).first().click();
+  await row.getByLabel("Name on this account").fill("");
+  await row.getByRole("button", { name: "Save name" }).click();
+  await expect(row.getByText("Saved.")).toBeVisible();
+  await page.goto(`${BASE}/send`);
+  await page.getByLabel("Month").selectOption({ index: 0 });
+  await page.getByLabel("Wording").selectOption({ label: "Signed by account" });
+  await page.getByRole("button", { name: "Preview the email" }).click();
+  await expect(page.frameLocator('iframe[title="How the email will look"]').getByText(/Sent by (?!Priya)/)).toBeVisible();
+});

@@ -104,6 +104,8 @@ export interface ConnectionRepository {
   /** Stores a fresh secret (e.g. after reconnecting) and marks the connection healthy again. */
   /** Also replaces the non-secret settings when `config` is given (a reconnect records what Google granted this time). */
   replaceSecret(orgId: string, id: string, secretCiphertext: string, config?: ConnectionConfig): Promise<void>;
+  /** Replaces the non-secret settings only (the secret and the health status are left alone). */
+  setConfig(orgId: string, id: string, config: ConnectionConfig): Promise<void>;
   recordCheck(orgId: string, id: string, result: { status: ConnectionStatus; error: string | null; at: Date }): Promise<void>;
   remove(orgId: string, id: string): Promise<void>;
 }

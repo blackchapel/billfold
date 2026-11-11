@@ -39,7 +39,7 @@ import { UpstashCache } from "../infra/cache/upstash-cache";
 import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
 import { CheckAllConnections } from "../application/connection-health";
-import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "../application/connections";
+import { AddMailAccount, ListConnections, RemoveConnection, SetConnectionSenderName, TestConnection, UpdateMailPassword } from "../application/connections";
 import { CreateManualBill, ListBills, MarkBillChecked, RemoveBillForRefiling, SetBillDeleted, SetBillPaid, UpdateBill } from "../application/bills";
 import { ReportService } from "../application/report-service";
 import { ProcessNextItem } from "../application/run-processor";
@@ -106,7 +106,7 @@ function build() {
   const sendRepo = invalidating(new DrizzleSendRepository(database), SPECS.sends, cache, memberIds);
   const sendItemRepo = invalidating(new DrizzleSendItemRepository(database), SPECS.sendItems, cache, memberIds);
   const mailSender = isTestMode() ? new StubMailSender() : new LiveMailSender(google);
-  const composer = new SendComposer(billRepo, templateRepo, orgs, users);
+  const composer = new SendComposer(billRepo, templateRepo, orgs, users, connections);
   const probe = isTestMode() ? new StubConnectionProbe() : new LiveConnectionProbe(google);
 
   return {
@@ -132,6 +132,7 @@ function build() {
     addMailAccount: new AddMailAccount(connections, authz, secretBox, probe, systemClock, audit),
     testConnection: new TestConnection(connections, authz, secretBox, probe, systemClock),
     removeConnection: new RemoveConnection(connections, authz, audit, secretBox, google, usage),
+    setConnectionSenderName: new SetConnectionSenderName(connections, authz, audit),
     updateMailPassword: new UpdateMailPassword(connections, authz, secretBox, probe, systemClock, audit),
     checkAllConnections: new CheckAllConnections(orgs, connections, secretBox, probe, systemClock),
     completeGoogleConnect: new CompleteGoogleConnect(connections, authz, secretBox, google, probe, systemClock, audit),

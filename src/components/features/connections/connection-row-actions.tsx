@@ -49,8 +49,27 @@ export function UpdatePasswordForm({ action }: { action: PasswordAction }) {
   );
 }
 
-export function ConnectionRowActions({ test, remove, label, reconnectHref, updatePassword }: {
-  test: TestAction; remove: RemoveAction; label: string; reconnectHref?: string; updatePassword?: PasswordAction;
+export function SenderNameForm({ action, current }: { action: PasswordAction; current: string }) {
+  const { formAction, pending, error, state } = useActionForm<void>(action as never);
+  const id = useId();
+  return (
+    <details className="text-sm">
+      <summary className="cursor-pointer underline underline-offset-4">Name on this account{current ? `: ${current}` : ""}</summary>
+      <form action={formAction} className="mt-2 flex max-w-sm flex-col gap-2">
+        <Field name="senderName" id={`sender-name-${id}`} label="Name on this account" defaultValue={current} maxLength={80} autoComplete="off"
+          hint="Fills {{from_name}} in your email wording, for example the sign-off. Leave empty to use the name of the person pressing Send." />
+        <div className="flex items-center gap-3">
+          <Button type="submit" variant="secondary" disabled={pending} className="min-h-9">{pending ? "Saving…" : "Save name"}</Button>
+          {state?.ok && <span role="status" className="text-xs text-muted">Saved.</span>}
+        </div>
+        {error && <span role="alert" className="text-xs text-danger">{error}</span>}
+      </form>
+    </details>
+  );
+}
+
+export function ConnectionRowActions({ test, remove, label, reconnectHref, updatePassword, senderName }: {
+  test: TestAction; remove: RemoveAction; label: string; reconnectHref?: string; updatePassword?: PasswordAction; senderName?: { action: PasswordAction; current: string };
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -60,6 +79,7 @@ export function ConnectionRowActions({ test, remove, label, reconnectHref, updat
         <RemoveButton action={remove} label={label} />
       </div>
       {updatePassword && <UpdatePasswordForm action={updatePassword} />}
+      {senderName && <SenderNameForm action={senderName.action} current={senderName.current} />}
     </div>
   );
 }
