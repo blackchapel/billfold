@@ -23,9 +23,9 @@ describe("summary email", () => {
   const input = (over: Partial<SummaryEmailInput> = {}): SummaryEmailInput => ({
     orgName: "Sharma Home", periodLabel: "October 2026", subject: "Bills for October 2026", intro: "Hello,\n\nHere are the bills.", signoff: "Regards,\nAsha",
     bills: [
-      { biller: "Jio", amountText: "₹1,234.50", dueText: "15 Dec", paid: false, note: null },
-      { biller: "Power & Light <Co>", amountText: "₹2,310.00", dueText: null, paid: true, note: "Cash, \"paid\" on the 1st" },
-      { biller: "Scan", amountText: null, dueText: null, paid: false, note: null },
+      { biller: "Jio", amountText: "₹1,234.50", dueText: "15 Dec", paid: false },
+      { biller: "Power & Light <Co>", amountText: "₹2,310.00", dueText: null, paid: true },
+      { biller: "Scan", amountText: null, dueText: null, paid: false },
     ],
     totalText: "₹3,544.50", unpaidText: "₹1,234.50", attachmentNames: ["jio.pdf", "power.pdf"], ...over,
   });
@@ -59,7 +59,7 @@ describe("summary email", () => {
     expect(out.html).not.toMatch(/<script|<img|<b>x/);
     expect(out.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(out.html).toContain("Power &amp; Light &lt;Co&gt;");
-    expect(out.html).toContain("Cash, &quot;paid&quot; on the 1st");
+    expect(out.html).not.toContain("Cash"); // a bill's own note is internal and never emailed
     expect(out.html).toContain("A &amp; B");
     expect(out.html).toContain("Hi &lt;img src=x onerror=alert(1)&gt;");
     expect(out.html).toContain("Line two");

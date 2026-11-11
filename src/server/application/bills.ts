@@ -216,6 +216,31 @@ export class SetBillDeleted {
   }
 }
 
+/**
+ * Deletes a bill that came from an email for good and lets that email be filed again by the next run. (Plain delete, `SetBillDeleted`,
+ * only hides the bill and keeps remembering the email.) The PDF already in Google Drive is not deleted, so filing again makes a
+ * second copy next to it. A bill typed in by hand has no email to file again.
+ */
+export class RemoveBillForRefiling {
+  constructor(
+    private readonly bills: BillRepository,
+    private readonly authz: AuthorizationService,
+    private readonly audit: AuditLogRepository,
+  ) {}
+
+  async execute(input: { actorId: string; orgId: string; billId: string }): Promise<void> {
+    await this.authz.require(input.actorId, input.orgId, "bills.edit");
+    const bill = await this.bills.find(input.orgId, input.billId);
+    if (!bill) throw new DomainError("not_found", "Bill not found");
+    if (bill.method === "manual") throw new DomainError("validation", "This bill was typed in by hand, so there is no email to file again. Use Delete instead.");
+    await this.bills.remove(input.orgId, bill.id);
+    await this.audit.record({
+      orgId: input.orgId, actorUserId: input.actorId, action: "bill.removed_for_refiling", entityType: "bill", entityId: bill.id,
+      metadata: { biller: bill.billerName, period: bill.periodKey, wasDeleted: bill.deletedAt !== null },
+    });
+  }
+}
+
 /** Any member may read bills. */
 export class ListBills {
   constructor(private readonly bills: BillRepository) {}

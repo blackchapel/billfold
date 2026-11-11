@@ -5,7 +5,11 @@ import type {
 } from "@/domain/ports/repositories";
 import type { Effect, Spec } from "./invalidating";
 
-export const SHORT_TTL_SECONDS = 60;
+/**
+ * The login allowlist and a person's org list are also deleted on every change; 10 minutes is only the backstop if that delete is lost.
+ * Access itself is re-checked on every request (membership query), so a stale org list can only show an org in the switcher.
+ */
+export const ACCESS_TTL_SECONDS = 10 * 60;
 
 export const allowKey = (email: string) => `allow:${email.trim().toLowerCase()}`;
 export const orgsKey = (userId: string) => `orgs:${userId}`;
@@ -23,7 +27,7 @@ const forgetAllMembers: Effect = async ({ args, cache, memberIds }) => cache.del
 export const SPECS = {
   allowlist: {
     plain: ["list"],
-    cachedReads: { isAllowed: { key: (a) => allowKey(String(a[0])), ttlSeconds: SHORT_TTL_SECONDS } },
+    cachedReads: { isAllowed: { key: (a) => allowKey(String(a[0])), ttlSeconds: ACCESS_TTL_SECONDS } },
     writes: {
       add: async ({ args, cache }) => cache.del(allowKey(String(args[0]))),
       remove: async ({ args, cache }) => cache.del(allowKey(String(args[0]))),
@@ -32,7 +36,7 @@ export const SPECS = {
   users: { plain: ["upsert", "findById", "setLastActiveOrg", "listAll"], writes: {} } satisfies Spec<UserRepository>, // nothing cached depends on a user's own row
   orgs: {
     plain: ["slugExists", "findMembershipBySlug", "listAll"],
-    cachedReads: { listForUser: { key: (a) => orgsKey(String(a[0])), ttlSeconds: SHORT_TTL_SECONDS } },
+    cachedReads: { listForUser: { key: (a) => orgsKey(String(a[0])), ttlSeconds: ACCESS_TTL_SECONDS } },
     writes: {
       createWithOwner: async ({ args, cache }) => cache.del(orgsKey(String((args[0] as { ownerId: string }).ownerId))),
       rename: forgetAllMembers,
@@ -62,7 +66,7 @@ export const SPECS = {
   } satisfies Spec<RunItemRepository>,
   bills: {
     plain: ["existingKeys", "find", "list", "findMany", "summary", "reportRows", "findFiles"],
-    writes: { record: bump("bills"), createManual: bump("bills"), update: bump("bills") },
+    writes: { record: bump("bills"), createManual: bump("bills"), update: bump("bills"), remove: bump("bills", "runs") }, // run items that pointed at it lose the link
   } satisfies Spec<BillRepository>,
   recipients: { plain: ["list", "find", "findByEmail", "findMany"], writes: { create: bump("recipients"), update: bump("recipients"), remove: bump("recipients") } } satisfies Spec<RecipientRepository>,
   templates: { plain: ["list", "find", "findByName"], writes: { create: bump("templates"), update: bump("templates"), setDefault: bump("templates"), remove: bump("templates") } } satisfies Spec<TemplateRepository>,

@@ -1,6 +1,6 @@
 import { SEND_LIMITS } from "./email-template";
 
-export interface SummaryBill { biller: string; amountText: string | null; dueText: string | null; paid: boolean; note: string | null }
+export interface SummaryBill { biller: string; amountText: string | null; dueText: string | null; paid: boolean }
 
 export interface SummaryEmailInput {
   orgName: string;
@@ -42,7 +42,7 @@ export function renderSummaryEmail(input: SummaryEmailInput): RenderedEmail {
   const subject = cleanSubject(input.subject);
   const rows = input.bills.map((b) => `
         <tr>
-          <td style="padding:8px 12px 8px 0;border-bottom:1px solid ${LINE};vertical-align:top">${escapeHtml(b.biller)}${b.note ? `<br><span style="color:${MUTED};font-size:12px">${escapeHtml(b.note)}</span>` : ""}</td>
+          <td style="padding:8px 12px 8px 0;border-bottom:1px solid ${LINE};vertical-align:top">${escapeHtml(b.biller)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid ${LINE};vertical-align:top;color:${MUTED};white-space:nowrap">${escapeHtml(b.dueText ?? "—")}${b.paid ? `<br><span style="font-size:12px">paid</span>` : ""}</td>
           <td style="padding:8px 0 8px 12px;border-bottom:1px solid ${LINE};vertical-align:top;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">${escapeHtml(b.amountText ?? "not known")}</td>
         </tr>`).join("");

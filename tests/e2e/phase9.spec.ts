@@ -206,3 +206,42 @@ test("F50 the test-only endpoints answer in test mode", async ({ request }) => {
   expect((await request.get("/api/test/outbox")).status()).toBe(200);
   expect((await request.post("/api/test/cache")).status()).toBe(200);
 });
+
+test("F51 Delete asks what to do: hide it for good, or remove it so the next run files the email again", async ({ page }) => {
+  test.setTimeout(150_000); // a long end-to-end flow
+  await signIn(page, "owner@example.com");
+  const row = (biller: string) => page.locator(`tbody tr[data-bill="${biller}"]`);
+  await page.goto(`${BASE}/bills`);
+
+  // A bill typed in by hand has no email to file again, so the dialog offers a single plain delete.
+  await page.goto(`${BASE}/bills/new`);
+  await page.getByLabel("Biller").fill("Typed F51");
+  await page.getByLabel("Amount (₹)").fill("10");
+  await page.getByRole("button", { name: "Add bill" }).click();
+  await expect(page).toHaveURL(/\/bills$/);
+  await row("Typed F51").getByRole("button", { name: "Delete", exact: true }).click();
+  const plain = page.getByRole("dialog", { name: "Delete this bill?" });
+  await expect(plain.getByRole("button", { name: "Delete and file it again next run" })).toHaveCount(0);
+  await plain.getByRole("button", { name: "Keep the bill" }).click(); // cancelling changes nothing
+  await expect(row("Typed F51")).toHaveCount(1);
+  await row("Typed F51").getByRole("button", { name: "Delete", exact: true }).click();
+  await plain.getByRole("button", { name: "Delete this bill", exact: true }).click();
+  await expect(row("Typed F51")).toHaveCount(0);
+
+  // A bill that came from an email: "file it again" removes it, and the next run files that email again.
+  const before = await row("Power").count();
+  await row("Power").first().getByRole("button", { name: "Delete", exact: true }).click();
+  const choose = page.getByRole("dialog", { name: "Delete this bill?" });
+  await choose.getByRole("button", { name: "Delete and file it again next run" }).click();
+  await expect(row("Power")).toHaveCount(before - 1);
+  await page.getByLabel("Show").selectOption("deleted");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(row("Power")).toHaveCount(0); // removed for good, not merely hidden
+  await page.goto(`${BASE}/runs`);
+  await page.getByLabel("Run configuration").selectOption({ label: "Everything" });
+  await page.getByRole("button", { name: "Start run" }).click();
+  await expect(page.getByRole("heading", { name: "Finished", level: 2 })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/1 filed · 0 failed/)).toBeVisible();
+  await page.goto(`${BASE}/bills`);
+  await expect(row("Power")).toHaveCount(before);
+});

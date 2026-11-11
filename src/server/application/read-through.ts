@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import type { Cache, CacheTag, CacheVersions } from "@/domain/ports/cache";
 
 /** A screen's data is remembered for at most this long even if nobody changes anything: the safety net under the versions. */
-export const READ_MODEL_TTL_SECONDS = 300;
+/**
+ * Pages are used about once a month, so a copy has to outlive the gap between visits. 35 days, not 30, so a visit on day 31 still hits.
+ * Staleness is not the TTL's job: saving data gives it a new version, so an old copy is never read again.
+ */
+export const READ_MODEL_TTL_SECONDS = 35 * 24 * 3600;
 
 /**
  * Returns what `load` returns, remembering it under a key that contains the version of every kind of data it was built from (`tags`).

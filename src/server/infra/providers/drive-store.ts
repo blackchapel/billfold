@@ -18,7 +18,8 @@ class DriveHttpError extends Error {
   constructor(readonly status: number) { super(`Drive request failed: ${status}`); }
 }
 
-const FOLDER_TTL_SECONDS = 3600;
+/** Folder ids are forgotten on a Drive 404 (see upload), so they can live long: a trashed or moved folder is found out at the next filing. */
+const FOLDER_TTL_SECONDS = 35 * 24 * 3600;
 
 /** "bill.pdf" -> ["bill", ".pdf"]; a name with no extension keeps an empty second part. */
 function splitName(name: string): [string, string] {

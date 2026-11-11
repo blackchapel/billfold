@@ -113,6 +113,13 @@ describe("PreviewSend and the composed email", () => {
     expect(out.email.html).not.toContain("<script>");
     expect(out.warnings.join(" ")).toMatch(/1 bill still needs a check/);
   });
+  it("never puts a bill's internal note (such as the reader's fallback remark) in the email", async () => {
+    const w = await world();
+    for (const [id, b] of m.bills) m.bills.set(id, { ...b, note: "Gemini could not read this bill, so the built-in reader was used." });
+    const out = await new PreviewSend(w.composer, authz()).execute({ actorId: w.owner.id, orgId: w.org.id, periodKey: "2026-10", templateId: null, attachPdfs: true });
+    expect(out.email.html).toContain("Jio");
+    expect(out.email.html + out.email.text).not.toMatch(/Gemini|built-in reader/);
+  });
   it("leaves PDFs out when asked, or when they are too many or too big, and says so", async () => {
     const w = await world();
     expect((await w.composer.compose({ actorId: w.owner.id, orgId: w.org.id, periodKey: "2026-10", templateId: null, attachPdfs: false })).files).toHaveLength(0);

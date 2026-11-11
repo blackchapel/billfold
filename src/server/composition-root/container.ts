@@ -40,7 +40,7 @@ import { DrizzleUserRepository } from "../infra/repositories/user-repository";
 import { ManageAllowlist } from "../application/allowlist";
 import { CheckAllConnections } from "../application/connection-health";
 import { AddMailAccount, ListConnections, RemoveConnection, TestConnection, UpdateMailPassword } from "../application/connections";
-import { CreateManualBill, ListBills, MarkBillChecked, SetBillDeleted, SetBillPaid, UpdateBill } from "../application/bills";
+import { CreateManualBill, ListBills, MarkBillChecked, RemoveBillForRefiling, SetBillDeleted, SetBillPaid, UpdateBill } from "../application/bills";
 import { ReportService } from "../application/report-service";
 import { ProcessNextItem } from "../application/run-processor";
 import { DeleteRecipient, ListRecipients, SaveRecipient } from "../application/recipients";
@@ -152,6 +152,7 @@ function build() {
     markBillChecked: new MarkBillChecked(billRepo, authz, systemClock, audit),
     setBillPaid: new SetBillPaid(billRepo, authz, systemClock, audit),
     setBillDeleted: new SetBillDeleted(billRepo, authz, systemClock, audit),
+    removeBillForRefiling: new RemoveBillForRefiling(billRepo, authz, audit),
     listBills: new ListBills(billRepo),
     reports: new ReportService(billRepo, systemClock),
     saveRecipient: new SaveRecipient(recipientRepo, authz, audit),

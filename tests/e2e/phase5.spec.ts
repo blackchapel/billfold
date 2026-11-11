@@ -101,7 +101,6 @@ test("F25 a bill can be added by hand, and mistakes keep what was typed", async 
 
 test("F26 paying, deleting and restoring; a deleted bill's email is not filed again", async ({ page }) => {
   test.setTimeout(120_000); // a long end-to-end flow, and the dev server compiles pages on first visit
-  page.on("dialog", (d) => void d.accept());
   await signIn(page, "owner@example.com");
   await page.goto(`${BASE}/bills`);
   const maid = row(page, "Maid");
@@ -118,13 +117,17 @@ test("F26 paying, deleting and restoring; a deleted bill's email is not filed ag
   // Delete a bill that came from an email, then run the same month again: it must not come back.
   // Two bills are called Power (the PDF and the newsletter that is itself a bill); deleting one leaves the other.
   await expect(row(page, "Power")).toHaveCount(2);
-  await row(page, "Power").filter({ hasText: "₹2,310.00" }).getByRole("button", { name: "Delete" }).click();
+  await row(page, "Power").filter({ hasText: "₹2,310.00" }).getByRole("button", { name: "Delete", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete this bill?" });
+  await expect(dialog.getByRole("button", { name: "Delete and file it again next run" })).toBeVisible(); // both choices are offered
+  await dialog.getByRole("button", { name: "Delete and don't file it again" }).click();
   await expect(row(page, "Power")).toHaveCount(1);
   await page.goto(`${BASE}/runs`);
   await page.getByLabel("Run configuration").selectOption({ label: "Everything" });
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByRole("heading", { name: "Finished", level: 2 })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("0 filed · 0 failed · 5 skipped · 0 waiting")).toBeVisible();
+  await expect(page.getByText("You deleted this bill and chose not to file it again.").first()).toBeVisible();
   await page.goto(`${BASE}/bills`);
   await expect(row(page, "Power")).toHaveCount(1);
   await expect(row(page, "Power").getByText("₹2,310.00")).toHaveCount(0);

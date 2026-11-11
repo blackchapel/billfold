@@ -181,7 +181,8 @@ export class Memory {
     skipPending: async (o, runId, note) => { let n = 0; for (const i of this.runItems.values()) if (i.runId === runId && i.orgId === o && i.status === "pending") { i.status = "skipped"; i.error = note; n++; } return n; },
   };
   billRepo: BillRepository = {
-    existingKeys: async (o, keys) => new Set([...this.bills.values()].filter((b) => b.orgId === o && keys.includes(b.messageKey)).map((b) => b.messageKey)),
+    existingKeys: async (o, keys) => new Map([...this.bills.values()].filter((b) => b.orgId === o && keys.includes(b.messageKey)).map((b) => [b.messageKey, b.deletedAt !== null] as const)),
+    remove: async (o, id) => { const b = this.bills.get(id); if (b && b.orgId === o) this.bills.delete(id); },
     record: async (orgId, bill, file) => {
       if ([...this.bills.values()].some((b) => b.orgId === orgId && b.messageKey === bill.messageKey)) throw new Error("duplicate key value violates unique constraint");
       const rec: BillRecord = { ...bill, id: randomUUID(), orgId, reviewedAt: null, paidAt: null, deletedAt: null, createdAt: this.now, files: [{ ...file, id: randomUUID() }] };

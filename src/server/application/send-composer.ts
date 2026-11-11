@@ -60,7 +60,7 @@ export class SendComposer {
       intro: fillPlaceholders(template.intro, values), signoff: fillPlaceholders(template.signoff, values),
       bills: bills.map((b) => ({
         biller: b.billerName, amountText: b.amountMinor === null ? null : money(b.amountMinor), paid: b.paidAt !== null,
-        dueText: b.dueDate, note: b.note,
+        dueText: b.dueDate,
       })),
       totalText: values.total, unpaidText: values.unpaid_total, attachmentNames: files.map((f) => f.name),
     });

@@ -9,7 +9,8 @@ export const versionKey = (orgId: string, tag: CacheTag) => `v:${orgId}:${tag}`;
  */
 export const newVersion = () => `${Date.now().toString(36)}${randomBytes(4).toString("hex")}`;
 
-export const VERSION_TTL_SECONDS = 30 * 24 * 3600;
+/** As long as the copies they guard (see READ_MODEL_TTL_SECONDS). */
+export const VERSION_TTL_SECONDS = 35 * 24 * 3600;
 
 export function toVersions(tokens: (string | null)[]): CacheVersions | null {
   if (tokens.length !== CACHE_TAGS.length || tokens.some((t) => t === null)) return null;

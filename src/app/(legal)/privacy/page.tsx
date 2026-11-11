@@ -33,7 +33,7 @@ const SCOPES = [
 const PROCESSORS = [
   ["Supabase", "Stores the database (your organisation, bill details, recipients, encrypted secrets) and handles Google sign-in."],
   ["Vercel", "Hosts the application and runs its server code. Server logs are kept by Vercel for a short time."],
-  ["Upstash", "Keeps a short-lived copy of lists and reports so pages open quickly (up to 5 minutes), and Google access tokens in sealed form (up to 45 minutes). It is a cache: anything in it can be rebuilt from the database."],
+  ["Upstash", "Keeps a copy of lists and reports so pages open quickly (up to 35 days, replaced whenever the data changes), and Google access tokens in sealed form (up to 45 minutes). It is a cache: anything in it can be rebuilt from the database."],
   ["Google", "Provides sign-in, Gmail and Drive, which is where your data already lives."],
   ["Your own mail provider", "Only if you connect a mailbox or a sending account with an app password: Billfold talks to that server to read or send mail on your behalf."],
   ["Google Gemini (optional)", "Only if the operator has switched it on: an unlocked bill PDF is sent to read the amount. See below."],
@@ -156,7 +156,7 @@ export default function Privacy() {
           <li><strong>Bill details and recipient lists:</strong> kept until you delete them. A deleted bill is hidden at once and kept only so the same email is not filed again.</li>
           <li><strong>Documents:</strong> they are in your Google Drive and stay there until you delete them. Billfold never deletes your Drive files.</li>
           <li><strong>Sent summary emails:</strong> the finished message and who it went to are kept in the sent log until the organisation is deleted.</li>
-          <li><strong>Cached copies:</strong> up to 5 minutes (Google access tokens up to 45 minutes, encrypted).</li>
+          <li><strong>Cached copies:</strong> up to 35 days, replaced whenever the data changes (Google access tokens up to 45 minutes, encrypted).</li>
           <li><strong>Server logs:</strong> kept by the hosting provider for a short period.</li>
           <li><strong>Backups:</strong> removed data may remain in a database backup until the backup expires.</li>
         </ul>
