@@ -128,6 +128,16 @@ describe("PreviewSend and the composed email", () => {
     await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "" });
     expect((await preview(w.smtp.id)).email.text).toContain("From o@example.com / o@example.com");
   });
+  it("shows the sending account's own name as the sender in the inbox, else the person pressing Send, else the address", async () => {
+    const w = await world();
+    const sendOne = async () => { m.outbox.length = 0; const s = await w.send({ attachPdfs: false, recipientIds: [w.asha.id] }); await w.drain(s.id); return m.outbox[0]?.fromName; };
+    expect(await sendOne()).toBe("send@example.com"); // no name anywhere: the account address
+    m.users.set(w.owner.id, { ...(m.users.get(w.owner.id) as NonNullable<ReturnType<typeof m.users.get>>), name: "Ravi Kumar" });
+    expect(await sendOne()).toBe("Ravi Kumar"); // no account name: the person pressing Send
+    const setName = new SetConnectionSenderName(m.connectionRepo, authz(), m.auditRepo);
+    await setName.execute({ actorId: w.owner.id, orgId: w.org.id, connectionId: w.smtp.id, name: "Priya Sharma" });
+    expect(await sendOne()).toBe("Priya Sharma"); // the account's name wins, whoever presses Send
+  });
   it("only managers name an account, only mail-sending accounts have a name, and bad names are refused", async () => {
     const w = await world();
     const setName = new SetConnectionSenderName(m.connectionRepo, authz(), m.auditRepo);

@@ -57,7 +57,7 @@ export function SenderNameForm({ action, current }: { action: PasswordAction; cu
       <summary className="cursor-pointer underline underline-offset-4">Name on this account{current ? `: ${current}` : ""}</summary>
       <form action={formAction} className="mt-2 flex max-w-sm flex-col gap-2">
         <Field name="senderName" id={`sender-name-${id}`} label="Name on this account" defaultValue={current} maxLength={80} autoComplete="off"
-          hint="Fills {{from_name}} in your email wording, for example the sign-off. Leave empty to use the name of the person pressing Send." />
+          hint="Shown as the sender in your recipients' inbox and filled into {{from_name}} in your wording. Leave empty to use the name of the person pressing Send." />
         <div className="flex items-center gap-3">
           <Button type="submit" variant="secondary" disabled={pending} className="min-h-9">{pending ? "Saving…" : "Save name"}</Button>
           {state?.ok && <span role="status" className="text-xs text-muted">Saved.</span>}

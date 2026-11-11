@@ -3,6 +3,7 @@ import type { AuditLogRepository, BillRepository, ConnectionRepository, Recipien
 import type { SendCounts, SendItemRecord, SendRecord, SendStatus, SendSummary } from "@/domain/ports/records";
 import type { Clock, DriveStore, MailSender, RateLimiter, SecretBox } from "@/domain/ports/services";
 import { SEND_LIMITS } from "@/domain/value-objects/email-template";
+import { connectionSenderName } from "@/domain/value-objects/connection";
 import { errorFields, logEvent } from "@/lib/log";
 import type { AuthorizationService } from "./authorization";
 import type { Composed, SendComposer } from "./send-composer";
@@ -151,7 +152,7 @@ export class ProcessNextSendItem {
     }
     await this.mailer.send({
       kind: connection.kind, config: connection.config, secretJson: await this.secrets.decrypt(orgId, cipher),
-      from: connection.accountEmail, fromName: sender?.name?.trim() || connection.accountEmail,
+      from: connection.accountEmail, fromName: connectionSenderName(connection.config) || sender?.name?.trim() || connection.accountEmail, // the account's own name first, as a mail app shows it
       to: { name: item.recipientName, email: item.recipientEmail },
       subject: send.subject, text: send.bodyText, html: send.bodyHtml, attachments,
     });
