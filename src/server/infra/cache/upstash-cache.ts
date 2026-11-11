@@ -86,6 +86,6 @@ export class UpstashCache implements Cache {
   async bump(orgId: string, tags: readonly CacheTag[]) {
     if (tags.length === 0) return;
     const ok = await this.run(tags.map((t) => ["SET", versionKey(orgId, t), newVersion(), "EX", VERSION_TTL_SECONDS] as Command));
-    if (!ok) logEvent("cache_bump_failed", { tags: tags.join(",") }); // old screens may be served until they expire (at most 5 minutes) once Redis is back
+    if (!ok) logEvent("cache_bump_failed", { tags: tags.join(",") }); // old screens may be served until they expire (until the next change to that data, or at most 35 days) once Redis is back; Settings > Clear the cache fixes it at once
   }
 }

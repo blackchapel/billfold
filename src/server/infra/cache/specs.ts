@@ -5,7 +5,10 @@ import type {
 } from "@/domain/ports/repositories";
 import type { Effect, Spec } from "./invalidating";
 
+/** The org list: short, so a change of membership shows quickly even if a bump was lost. */
 export const SHORT_TTL_SECONDS = 60;
+/** The login allowlist is also deleted on every change; 10 minutes is only the backstop if that delete is lost. */
+export const ALLOWLIST_TTL_SECONDS = 10 * 60;
 
 export const allowKey = (email: string) => `allow:${email.trim().toLowerCase()}`;
 export const orgsKey = (userId: string) => `orgs:${userId}`;
@@ -23,7 +26,7 @@ const forgetAllMembers: Effect = async ({ args, cache, memberIds }) => cache.del
 export const SPECS = {
   allowlist: {
     plain: ["list"],
-    cachedReads: { isAllowed: { key: (a) => allowKey(String(a[0])), ttlSeconds: SHORT_TTL_SECONDS } },
+    cachedReads: { isAllowed: { key: (a) => allowKey(String(a[0])), ttlSeconds: ALLOWLIST_TTL_SECONDS } },
     writes: {
       add: async ({ args, cache }) => cache.del(allowKey(String(args[0]))),
       remove: async ({ args, cache }) => cache.del(allowKey(String(args[0]))),

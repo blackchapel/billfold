@@ -77,9 +77,9 @@ describe("readThrough", () => {
     const cache = new MemoryCache(() => now);
     const run = async (value: string) => readThrough(cache, await cache.versions("o"), "o", "n", ["bills"], null, async () => value);
     expect(await run("a")).toBe("a");
-    now += 299_000;
-    expect(await run("b")).toBe("a");
-    now += 2_000;
+    now += 34 * 24 * 3600_000;
+    expect(await run("b")).toBe("a"); // still there the next time the user comes back
+    now += 2 * 24 * 3600_000;
     expect(await run("b")).toBe("b");
   });
 });
@@ -157,5 +157,18 @@ describe("Upstash cache over HTTPS", () => {
     expect(await denied.cache.get("k")).toBeNull();
     const broken = make(() => Response.json([{ error: "ERR wrong" }]));
     expect(await broken.cache.get("k")).toBeNull();
+  });
+});
+
+describe("cache lifetimes", () => {
+  it("keeps lists for the gap between monthly visits, and access-related answers short", async () => {
+    const { READ_MODEL_TTL_SECONDS } = await import("@/server/application/read-through");
+    const { VERSION_TTL_SECONDS } = await import("@/server/infra/cache/versions");
+    const { ALLOWLIST_TTL_SECONDS, SHORT_TTL_SECONDS } = await import("@/server/infra/cache/specs");
+    const day = 24 * 3600;
+    expect(READ_MODEL_TTL_SECONDS).toBe(35 * day);
+    expect(VERSION_TTL_SECONDS).toBeGreaterThanOrEqual(READ_MODEL_TTL_SECONDS); // a version must outlive the copies it guards
+    expect(ALLOWLIST_TTL_SECONDS).toBe(600);
+    expect(SHORT_TTL_SECONDS).toBe(60);
   });
 });

@@ -1,7 +1,7 @@
 import type { Cache, CacheTag, CacheVersions } from "@/domain/ports/cache";
 import { CACHE_TAGS } from "@/domain/ports/cache";
 import { decode, encode } from "@/lib/cache-codec";
-import { newVersion, versionKey } from "./versions";
+import { newVersion, versionKey, VERSION_TTL_SECONDS } from "./versions";
 
 /** The same behaviour as the Redis cache, inside this process: for tests and test mode. Entries expire like the real thing. */
 export class MemoryCache implements Cache {
@@ -35,7 +35,7 @@ export class MemoryCache implements Cache {
     for (const tag of CACHE_TAGS) {
       const key = versionKey(orgId, tag);
       let hit = this.store.get(key);
-      if (!hit || hit.expires <= this.now()) { hit = { text: encode(newVersion()), expires: this.now() + 30 * 24 * 3600_000 }; this.store.set(key, hit); }
+      if (!hit || hit.expires <= this.now()) { hit = { text: encode(newVersion()), expires: this.now() + VERSION_TTL_SECONDS * 1000 }; this.store.set(key, hit); }
       out[tag] = decode<string>(hit.text);
     }
     return out;
@@ -43,6 +43,6 @@ export class MemoryCache implements Cache {
 
   async bump(orgId: string, tags: readonly CacheTag[]) {
     if (this.down) return;
-    for (const tag of tags) this.store.set(versionKey(orgId, tag), { text: encode(newVersion()), expires: this.now() + 30 * 24 * 3600_000 });
+    for (const tag of tags) this.store.set(versionKey(orgId, tag), { text: encode(newVersion()), expires: this.now() + VERSION_TTL_SECONDS * 1000 });
   }
 }

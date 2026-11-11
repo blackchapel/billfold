@@ -43,7 +43,7 @@ test("F37 the privacy policy and terms are public, complete and honest about Goo
   // Every service that touches the data is named, including the cache.
   for (const who of ["Supabase.", "Vercel.", "Upstash.", "Google.", "Google Gemini (optional)."]) await expect(page.getByText(who, { exact: false }).first()).toBeVisible();
   await expect(page.getByText("Billfold does not sell personal information")).toBeVisible();
-  await expect(page.getByText("Last updated 10 November 2026")).toBeVisible();
+  await expect(page.getByText("Last updated 11 November 2026")).toBeVisible();
   // No contact address is configured in tests, so the page says to ask whoever invited you rather than showing a broken link.
   await expect(page.getByText("Ask the person who invited you")).toBeVisible();
   await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
