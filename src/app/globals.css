@@ -63,23 +63,25 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-sans
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
 /*
- * Loading skeletons. One soft band slides across the whole skeleton; the grey blocks themselves never change. Only `transform`
- * is animated, so the browser moves a single layer on the graphics card and nothing is laid out or repainted per frame
- * (the old pulse faded the opacity of every block, which repainted the page area on each frame and stuttered on phones).
- * This is the one place a gradient is allowed (docs/design.md).
+ * Loading skeletons. Each grey bar is its own element with its own highlight that sweeps from left to right INSIDE the bar, clipped to
+ * the bar's shape (`overflow: hidden`); the gaps between bars stay still. The highlight is a pseudo-element moved with `transform`
+ * only, so the browser slides a layer on the graphics card and repaints nothing per frame (animating `background-position` or
+ * `opacity` would repaint every bar every frame). All bars share one duration and start together, so the sweeps line up.
+ * This is the one place a gradient is allowed (docs/design.md), and only inside a skeleton bar.
  */
-:root { --shimmer: rgb(255 255 255 / 0.55); --skeleton: color-mix(in srgb, var(--line) 70%, var(--paper)); }
-:root[data-theme="dark"] { --shimmer: rgb(255 255 255 / 0.06); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shimmer: rgb(255 255 255 / 0.06); } }
-.shimmer { position: relative; overflow: hidden; contain: paint; }
-.shimmer::after {
+:root { --shimmer: rgb(255 255 255 / 0.4); --skeleton: color-mix(in srgb, var(--line) 85%, var(--paper)); }
+:root[data-theme="dark"] { --shimmer: rgb(255 255 255 / 0.08); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shimmer: rgb(255 255 255 / 0.08); } }
+.skeleton { position: relative; overflow: hidden; contain: paint; background: var(--skeleton); }
+.skeleton::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(100deg, transparent 0%, var(--shimmer) 50%, transparent 100%);
-  transform: translate3d(-100%, 0, 0); will-change: transform;
-  animation: shimmer 1.5s linear infinite;
+  background: linear-gradient(90deg, transparent 0%, var(--shimmer) 50%, transparent 100%);
+  transform: translateX(-100%); will-change: transform;
+  animation: skeleton-wave 1.6s ease-in-out infinite;
 }
-@keyframes shimmer { to { transform: translate3d(100%, 0, 0); } }
-.skeleton-block { background: var(--skeleton); border-radius: 2px; }
+/* The sweep takes the first 60% of the time; the rest is a short rest, so it reads as a wave and not a flicker. */
+@keyframes skeleton-wave { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { display: none; } } /* plain still bars */
 
 /* A small turning ring for "this was pressed and is opening". Also transform-only. */
 .spinner { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 9999px; animation: spin 0.7s linear infinite; }
