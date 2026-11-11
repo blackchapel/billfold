@@ -31,7 +31,7 @@ Add or update a flow in the same commit as the feature that changes it.
 | F23 | Viewer opens runs | Can read, no start/retry/cancel/pause | phase4.spec.ts |
 | F24 | A scan with no readable text is filed; open Bills from the Overview notice; correct it (with a typo first) and tick "checked" | Flagged on Overview and in Bills; typed values survive the error; after saving the flag and notices are gone | phase5.spec.ts |
 | F25 | Add a bill by hand (a bad amount first) | Typed values kept after the error; bill listed as "added by hand"; the month list starts at the current month | phase5.spec.ts |
-| F26 | Mark paid / unpaid, delete a bill that came from an email, run the month again, restore it | "Not paid yet" filter works; the deleted bill's email is not filed again; Restore brings it back | phase5.spec.ts |
+| F26 | Mark paid / unpaid, delete a bill that came from an email ("don't file it again" in the dialog), run the month again, restore it | "Not paid yet" filter works; the deleted bill's email is skipped with "You deleted this bill…"; Restore brings it back | phase5.spec.ts |
 | F27 | Search, month filter, Download CSV (also as someone not signed in) | Filters apply; CSV has the header, plain amounts, a defused formula cell; scoped export; no data without a session | phase5.spec.ts |
 | F28 | Open Reports: insights, due lists, month picker, chart hover / focus / table / click a column | Overdue and due-soon bills named with amounts; chart has 12 links, tooltip on hover and focus, 12-row table, columns open that month | phase5.spec.ts |
 | F29 | Viewer opens Bills and Reports | Can read, filter and download; no add, edit, paid, delete or check buttons; `/bills/new` bounces | phase5.spec.ts |
@@ -57,6 +57,7 @@ Add or update a flow in the same commit as the feature that changes it.
 | F48 | A change in one session shows in another: recipient added; viewer promoted and demoted | Visible at once after reload; permissions follow the role change at once | phase9.spec.ts |
 | F49 | Settings > Cache > Clear the cache (and as a viewer) | Confirmation shown; data still there; viewer has no button | phase9.spec.ts |
 | F50 | The test-only endpoints | Answer in test mode (they answer 404 elsewhere) | phase9.spec.ts |
+| F51 | Bills > Delete (typed-in bill, then an emailed bill) | Typed-in bill: one plain delete, Keep leaves it. Emailed bill: two choices; "file it again" removes it for good and the next run files it again | phase9.spec.ts |
 | V1 | Every page at phone and desktop widths, light and dark | No console errors, no horizontal overflow, no axe WCAG A/AA violations; screenshots saved | visual.spec.ts |
 
 ## Not yet automatable

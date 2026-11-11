@@ -148,6 +148,24 @@ describe("StartRun", () => {
     expect([...m.runItems.values()].find((i) => i.runId === again.run.id)?.error).toBe("Already filed in an earlier run.");
   });
 
+  it("says a skipped email was deleted by you, and files it again once the bill is removed for good", async () => {
+    const w = await world();
+    m.mailbox = [message({ id: "1" })];
+    m.emails.set("1", email());
+    await w.drain((await w.startRun()).run.id);
+    const bill = [...m.bills.values()][0];
+    if (!bill) throw new Error("no bill");
+    m.bills.set(bill.id, { ...bill, deletedAt: m.now });
+    const hidden = await w.startRun();
+    expect(hidden.counts.skipped).toBe(1);
+    expect([...m.runItems.values()].find((i) => i.runId === hidden.run.id)?.error).toMatch(/You deleted this bill and chose not to file it again/);
+    await m.billRepo.remove(bill.orgId, bill.id); // "Delete and file it again"
+    const again = await w.startRun();
+    expect(again.counts).toMatchObject({ pending: 1, skipped: 0 });
+    await w.drain(again.run.id);
+    expect(m.bills.size).toBe(1);
+  });
+
   it("shows an unreadable mailbox as a failed item instead of silently finding nothing", async () => {
     const w = await world();
     m.searchFails = true;

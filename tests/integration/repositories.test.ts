@@ -330,8 +330,8 @@ run("repositories (real Postgres)", () => {
       expect((await w.bills.list(w.a.id, {})).map((b) => b.periodKey)).toEqual(["2026-10", "2026-09"]);
       expect((await w.bills.list(w.a.id, { periodKey: "2026-09" }))[0]).toMatchObject({ amountMinor: null, needsReview: true, note: "scan" });
       expect(await w.bills.list(w.b.id, {})).toEqual([]);
-      expect([...(await w.bills.existingKeys(w.a.id, ["key-1", "key-2", "nope"]))].sort()).toEqual(["key-1", "key-2"]);
-      expect([...(await w.bills.existingKeys(w.b.id, ["key-1"]))]).toEqual([]);
+      expect([...(await w.bills.existingKeys(w.a.id, ["key-1", "key-2", "nope"])).keys()].sort()).toEqual(["key-1", "key-2"]);
+      expect([...(await w.bills.existingKeys(w.b.id, ["key-1"])).keys()]).toEqual([]);
       await w.bills.record(w.b.id, w.newBill("key-1"), { ...w.newFile(4), driveConnectionId: w.drive.id }).catch(() => undefined); // same key is fine in another org
     });
 
@@ -372,11 +372,19 @@ run("repositories (real Postgres)", () => {
       await w.bills.update(w.a.id, sep.id, { deletedAt: when, deletedBy: w.owner.id });
       expect(await names({})).not.toContain("100% Power_Co");
       expect(await names({ deleted: "only" })).toEqual(["100% Power_Co"]);
-      expect([...(await w.bills.existingKeys(w.a.id, ["jio-sep"]))]).toEqual(["jio-sep"]);
+      expect([...(await w.bills.existingKeys(w.a.id, ["jio-sep"])).keys()]).toEqual(["jio-sep"]);
+      expect((await w.bills.existingKeys(w.a.id, ["jio-sep"])).get("jio-sep")).toBe(true); // deleted, not gone
+      await w.bills.remove(w.b.id, sep.id); // another organisation cannot remove it
+      expect((await w.bills.existingKeys(w.a.id, ["jio-sep"])).size).toBe(1);
       await w.bills.update(w.a.id, sep.id, { deletedAt: null, deletedBy: null });
       expect(await names({ deleted: "only" })).toEqual([]);
       expect(await names({})).toContain("100% Power_Co");
       expect(await w.bills.list(w.b.id, {})).toEqual([]);
+
+      // removing for good drops the bill and its files, and the email is forgotten so a run files it again
+      await w.bills.remove(w.a.id, sep.id);
+      expect((await w.bills.existingKeys(w.a.id, ["jio-sep"])).size).toBe(0);
+      expect(await w.bills.find(w.a.id, sep.id)).toBeNull();
     });
 
     it("keeps bills and runs when their source, run configuration or Drive connection is deleted, and cascades with the run", async () => {

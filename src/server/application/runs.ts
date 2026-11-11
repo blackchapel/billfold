@@ -74,7 +74,11 @@ export class StartRun {
 
     const filed = await this.bills.existingKeys(input.orgId, items.filter((i) => i.status === "pending").map((i) => i.itemKey));
     for (const item of items) {
-      if (item.status === "pending" && filed.has(item.itemKey)) { item.status = "skipped"; item.error = "Already filed in an earlier run."; }
+      if (item.status !== "pending" || !filed.has(item.itemKey)) continue;
+      item.status = "skipped";
+      item.error = filed.get(item.itemKey)
+        ? "You deleted this bill and chose not to file it again. Restore it from Bills > Deleted, or remove it there so the next run files it."
+        : "Already filed in an earlier run.";
     }
 
     const run = await this.runs.create(input.orgId, {

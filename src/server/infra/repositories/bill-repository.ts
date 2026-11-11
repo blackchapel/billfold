@@ -33,12 +33,18 @@ export class DrizzleBillRepository implements BillRepository {
   }
 
   async existingKeys(orgId: string, keys: string[]) {
-    const found = new Set<string>();
+    const found = new Map<string, boolean>();
     for (let i = 0; i < keys.length; i += 500) {
-      const rows = await this.db.select({ k: bills.messageKey }).from(bills).where(and(eq(bills.orgId, orgId), inArray(bills.messageKey, keys.slice(i, i + 500))));
-      for (const r of rows) found.add(r.k);
+      const rows = await this.db.select({ k: bills.messageKey, deletedAt: bills.deletedAt }).from(bills)
+        .where(and(eq(bills.orgId, orgId), inArray(bills.messageKey, keys.slice(i, i + 500))));
+      for (const r of rows) found.set(r.k, r.deletedAt !== null);
     }
     return found;
+  }
+
+  async remove(orgId: string, id: string) {
+    // Its file records go with it (cascade); run items that pointed at it keep their place and just lose the link.
+    await this.db.delete(bills).where(and(eq(bills.orgId, orgId), eq(bills.id, id)));
   }
 
   async record(orgId: string, bill: NewBill, file: NewBillFile) {

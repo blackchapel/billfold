@@ -161,8 +161,10 @@ export interface RunItemRepository {
 }
 
 export interface BillRepository {
-  /** Which of these keys already have a bill (deleted ones included, so a deleted bill is not filed again). */
-  existingKeys(orgId: string, keys: string[]): Promise<Set<string>>;
+  /** The keys that already have a bill, each with whether that bill is deleted (a deleted bill still counts, so it is not filed again). */
+  existingKeys(orgId: string, keys: string[]): Promise<Map<string, boolean>>;
+  /** Deletes the bill and its file records for good, so its email can be filed again. The PDF in Google Drive is not touched. */
+  remove(orgId: string, id: string): Promise<void>;
   /** Saves the bill and its Drive file together. */
   record(orgId: string, bill: NewBill, file: NewBillFile): Promise<BillRecord>;
   /** A bill typed in by hand: no email, no file. */

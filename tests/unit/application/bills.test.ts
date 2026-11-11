@@ -4,7 +4,7 @@ import type { NewBill } from "@/domain/ports/records";
 import { AuthorizationService } from "@/server/application/authorization";
 import { CompleteGoogleConnect } from "@/server/application/google-connect";
 import { CreateOrg } from "@/server/application/create-org";
-import { CreateManualBill, ListBills, MarkBillChecked, SetBillDeleted, SetBillPaid, UpdateBill, type BillFields } from "@/server/application/bills";
+import { CreateManualBill, ListBills, MarkBillChecked, RemoveBillForRefiling, SetBillDeleted, SetBillPaid, UpdateBill, type BillFields } from "@/server/application/bills";
 import { ReportService } from "@/server/application/report-service";
 import { Memory } from "../../fakes/memory";
 
@@ -38,7 +38,8 @@ async function world() {
   const manual = new CreateManualBill(m.billRepo, authz(), m.clock, m.auditRepo);
   const paid = new SetBillPaid(m.billRepo, authz(), m.clock, m.auditRepo);
   const deleter = new SetBillDeleted(m.billRepo, authz(), m.clock, m.auditRepo);
-  return { owner, member, viewer, stranger, org, other, bill, scan, update, manual, paid, deleter };
+  const refile = new RemoveBillForRefiling(m.billRepo, authz(), m.auditRepo);
+  return { owner, member, viewer, stranger, org, other, bill, scan, update, manual, paid, deleter, refile };
 }
 
 describe("UpdateBill", () => {
@@ -218,12 +219,41 @@ describe("SetBillPaid and SetBillDeleted", () => {
     await w.deleter.execute({ actorId: w.member.id, orgId: w.org.id, billId: w.bill.id, deleted: true });
     expect((await list.list(w.org.id, {})).map((b) => b.id)).toEqual([w.scan.id]);
     expect((await list.list(w.org.id, { deleted: "only" })).map((b) => b.id)).toEqual([w.bill.id]);
-    expect(await m.billRepo.existingKeys(w.org.id, ["jio-oct"])).toEqual(new Set(["jio-oct"])); // a later run will not file it again
+    expect(await m.billRepo.existingKeys(w.org.id, ["jio-oct"])).toEqual(new Map([["jio-oct", true]])); // a later run will not file it again, and knows it was deleted
     await expectCode(w.paid.execute({ actorId: w.owner.id, orgId: w.org.id, billId: w.bill.id, paid: true }), "validation");
     await w.deleter.execute({ actorId: w.member.id, orgId: w.org.id, billId: w.bill.id, deleted: false });
     expect((await list.list(w.org.id, {})).map((b) => b.id).sort()).toEqual([w.bill.id, w.scan.id].sort());
     expect(m.audit.map((a) => a.action).filter((a) => a.startsWith("bill."))).toEqual(["bill.deleted", "bill.restored"]);
     await expectCode(w.deleter.execute({ actorId: w.viewer.id, orgId: w.org.id, billId: w.bill.id, deleted: true }), "forbidden");
+  });
+});
+
+describe("RemoveBillForRefiling", () => {
+  it("removes the bill for good and forgets its email, so a later run files it again", async () => {
+    const w = await world();
+    expect(await m.billRepo.existingKeys(w.org.id, ["jio-oct"])).toEqual(new Map([["jio-oct", false]]));
+    await w.refile.execute({ actorId: w.member.id, orgId: w.org.id, billId: w.bill.id });
+    expect(m.bills.has(w.bill.id)).toBe(false);
+    expect((await m.billRepo.existingKeys(w.org.id, ["jio-oct"])).size).toBe(0);
+    expect(m.audit.at(-1)).toMatchObject({ action: "bill.removed_for_refiling" });
+    expect(m.audit.at(-1)?.metadata).toMatchObject({ biller: "Jio", wasDeleted: false });
+  });
+  it("also works on a bill that was deleted earlier", async () => {
+    const w = await world();
+    await w.deleter.execute({ actorId: w.member.id, orgId: w.org.id, billId: w.bill.id, deleted: true });
+    await w.refile.execute({ actorId: w.member.id, orgId: w.org.id, billId: w.bill.id });
+    expect(m.bills.has(w.bill.id)).toBe(false);
+    expect(m.audit.at(-1)?.metadata).toMatchObject({ wasDeleted: true });
+  });
+  it("refuses a bill typed in by hand, viewers and other organisations", async () => {
+    const w = await world();
+    const typed = await w.manual.execute({ actorId: w.member.id, orgId: w.org.id, fields: fields({ billerName: "Maid", amountText: "3000" }) });
+    await expectCode(w.refile.execute({ actorId: w.member.id, orgId: w.org.id, billId: typed.id }), "validation");
+    expect(m.bills.has(typed.id)).toBe(true);
+    await expectCode(w.refile.execute({ actorId: w.viewer.id, orgId: w.org.id, billId: w.bill.id }), "forbidden");
+    await expectCode(w.refile.execute({ actorId: w.stranger.id, orgId: w.other.id, billId: w.bill.id }), "not_found");
+    await expectCode(w.refile.execute({ actorId: w.member.id, orgId: w.org.id, billId: "missing" }), "not_found");
+    expect(m.bills.has(w.bill.id)).toBe(true);
   });
 });
 

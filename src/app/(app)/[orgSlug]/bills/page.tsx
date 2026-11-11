@@ -1,7 +1,7 @@
 import { BillActions } from "@/components/features/bills/bill-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { periodLabel } from "@/constants/runs";
-import { markBillCheckedAction, setBillDeletedAction, setBillPaidAction } from "@/server/http/actions/bill-actions";
+import { markBillCheckedAction, removeBillForRefilingAction, setBillDeletedAction, setBillPaidAction } from "@/server/http/actions/bill-actions";
 import { listBills, parseBillFilter } from "@/server/http/queries/bill-queries";
 import { requireOrg } from "@/server/http/session";
 import { LinkButton, TextLink } from "@/components/features/shell/pending-link";
@@ -76,9 +76,10 @@ export default async function Bills({ params, searchParams }: { params: Promise<
                     <td className="py-3">
                       <div className="flex flex-col gap-2">
                         {!b.deleted && <TextLink href={`/${orgSlug}/bills/${b.id}`} className="text-sm">Edit</TextLink>}
-                        <BillActions paid={b.paid} deleted={b.deleted} needsReview={b.needsReview} actions={{
+                        <BillActions paid={b.paid} deleted={b.deleted} needsReview={b.needsReview} biller={b.billerName} month={periodLabel(b.periodKey)} fromEmail={b.method !== "manual"} actions={{
                           markPaid: setBillPaidAction.bind(null, orgSlug, b.id, true) as never, markUnpaid: setBillPaidAction.bind(null, orgSlug, b.id, false) as never,
                           remove: setBillDeletedAction.bind(null, orgSlug, b.id, true) as never, restore: setBillDeletedAction.bind(null, orgSlug, b.id, false) as never,
+                          refile: removeBillForRefilingAction.bind(null, orgSlug, b.id) as never,
                           markChecked: markBillCheckedAction.bind(null, orgSlug, b.id) as never,
                         }} />
                       </div>

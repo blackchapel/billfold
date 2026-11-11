@@ -62,7 +62,7 @@ export const SPECS = {
   } satisfies Spec<RunItemRepository>,
   bills: {
     plain: ["existingKeys", "find", "list", "findMany", "summary", "reportRows", "findFiles"],
-    writes: { record: bump("bills"), createManual: bump("bills"), update: bump("bills") },
+    writes: { record: bump("bills"), createManual: bump("bills"), update: bump("bills"), remove: bump("bills", "runs") }, // run items that pointed at it lose the link
   } satisfies Spec<BillRepository>,
   recipients: { plain: ["list", "find", "findByEmail", "findMany"], writes: { create: bump("recipients"), update: bump("recipients"), remove: bump("recipients") } } satisfies Spec<RecipientRepository>,
   templates: { plain: ["list", "find", "findByName"], writes: { create: bump("templates"), update: bump("templates"), setDefault: bump("templates"), remove: bump("templates") } } satisfies Spec<TemplateRepository>,

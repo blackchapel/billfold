@@ -63,6 +63,14 @@ export async function setBillPaidAction(slug: string, billId: string, paid: bool
   return result;
 }
 
+/** Removes an email's bill for good so the next run files that email again. */
+export async function removeBillForRefilingAction(slug: string, billId: string, _prev: ActionState | null): Promise<ActionState> {
+  const { user, membership } = await requireOrgFresh(slug);
+  const result = await runAction(async () => { await container().removeBillForRefiling.execute({ actorId: user.id, orgId: membership.orgId, billId }); });
+  refresh(slug);
+  return result;
+}
+
 export async function setBillDeletedAction(slug: string, billId: string, deleted: boolean, _prev: ActionState | null): Promise<ActionState> {
   const { user, membership } = await requireOrgFresh(slug);
   const result = await runAction(async () => { await container().setBillDeleted.execute({ actorId: user.id, orgId: membership.orgId, billId, deleted }); });
